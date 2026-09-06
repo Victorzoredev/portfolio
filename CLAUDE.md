@@ -158,6 +158,32 @@ criado, e no Firestore documento que só tem subcoleção não aparece em
 listagem. Quem precisa listar sessões usa `studio_sessions`, não
 `graph_threads`.
 
+**O slide tem tempo; a foto dele, não.** O slide se constrói durante a fala —
+blocos nascem em `.fd-hidden` e o vídeo os revela por JS. Virar imagem de post
+exige `preparar_slide_estatico`, que congela tudo no estado final; sem isso a
+imagem sai com o primeiro bloco só, e um comparativo de duas colunas vira uma
+coluna com um vão. Foi assim que a primeira imagem de LinkedIn saiu.
+
+**A grafia fonética é para o OUVIDO, e vaza para tudo que é lido.** O script
+traz "prómpti", "tóquens", "ê-pê-í" para o ElevenLabs pronunciar certo. Isso
+chega à legenda queimada E ao texto das ilustrações, que o slide_designer
+copia do script — um slide de 02/09 saiu com "Tóquens por ciclo" no vídeo.
+`pronuncia.desfonetizar` reverte, e roda em tudo que vira tela. Nunca no
+script que alimenta o TTS.
+
+**Lote e plano têm que fechar.** Cada canal é gerado por chamada (`LoteX`) e a
+soma é validada contra `PlanoSocial`. Baixar a cota de stories sem baixar o
+lote deixou o piso somado (3×4=12) ACIMA do teto do plano (8): nenhuma
+montagem podia dar certo, sem erro de Vertex, só o ciclo perdido.
+`test_lotes_cabem_no_plano` trava a relação.
+
+**Timeout de rede no upload custava uma produção inteira.** O upload do
+YouTube é resumable e o código não retomava: um `Read timed out` derrubava
+tudo, e como a saída oferecida era aprovar de novo, o pacote era refeito com o
+avatar do HeyGen gerado uma SEGUNDA vez. Hoje cada chunk tenta 3x e pergunta
+ao servidor até onde ele recebeu — reenviar do offset local duplica ou pula
+bytes.
+
 **A fila agendada é varrida INTEIRA, nunca com um limite solto.** O
 `publisher_job` buscava `where(status==planned).limit(50)` sem ordenação: com
 71 pendentes, o Firestore devolvia 50 quaisquer e as outras 21 não existiam

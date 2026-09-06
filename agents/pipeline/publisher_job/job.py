@@ -537,6 +537,31 @@ class PublisherJob:
     def _tem_link(texto: str | None) -> bool:
         return bool(texto) and ("http://" in texto or "https://" in texto)
 
+    def _copy_do_curto(self, data: dict[str, Any]) -> str:
+        """
+        Legenda de Reel/Short a partir do gancho próprio e da série.
+
+        O curto tem gancho separado (`short_frase`, do `vertical_cut.title` do
+        manifesto) justamente porque a legenda do vídeo longo não serve: ele
+        mostra um trecho, não o vídeo inteiro.
+
+        O destino entra escrito, não como URL — no Instagram a legenda não
+        vira link, então "link na bio" é a única instrução que a pessoa
+        consegue seguir.
+        """
+        gancho = (data.get("short_frase") or data.get("title") or "").strip()
+        tags   = _hashtags_da_serie(data.get("serie"))
+        video  = self._link_da_campanha(data)
+        plataforma = data.get("platform") or ""
+
+        partes = [gancho] if gancho else []
+        if plataforma == "instagram":
+            partes.append("Vídeo completo no YouTube — link na bio")
+        elif video:
+            partes.append(f"▶️ Versão completa: {video}")
+        partes.append(tags)
+        return "\n\n".join(p for p in partes if p).strip()
+
     def _garantir_link(self, data: dict[str, Any], platform: str) -> dict[str, Any]:
         """
         Põe o link na peça quando a plataforma sabe renderizá-lo.
@@ -1121,6 +1146,14 @@ class PublisherJob:
         for key in ("comentario_fixado", "firstComment"):
             if isinstance(data.get(key), str):
                 data[key] = self._resolve_placeholders(data[key], data)
+
+        # Peça de vídeo curto entra na fila SEM copy: quem a monta é o
+        # publisher, com o gancho próprio e as hashtags da série. Sem isto o
+        # Reel vai ao ar com a legenda VAZIA — foi o que aconteceu com os dois
+        # de 01 e 02/09, porque a montagem só existia no caminho de publicação
+        # imediata e a fila publica `data["copy"]` direto.
+        if fmt in ("reel", "shorts") and not (data.get("copy") or "").strip():
+            data["copy"] = self._copy_do_curto(data)
 
         # Marcador resolvido é o caminho feliz; isto é a rede embaixo dele.
         data = self._garantir_link(data, platform)

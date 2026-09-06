@@ -375,3 +375,77 @@ def test_sem_roteiro_nao_inventa_aviso():
 
     plano = _PlanoFake("No vídeo eu mostro o código medindo tudo.")
     assert checar_promessas_do_video(plano, "") == []
+
+
+# ── LinkedIn: imagem do vídeo, completa ───────────────────────────────────────
+
+_SLIDE = (
+    '<!DOCTYPE html><html><head><style>#yt-02 .fd{animation:fadeIn .4s forwards}'
+    '#yt-02 .fd-hidden{display:none}</style></head><body>'
+    '<div id="fd1" class="fd">coluna esquerda</div>'
+    '<div id="fd2" class="fd fd-hidden">coluna direita</div>'
+    '<p>Tóquens por ciclo</p></body></html>'
+)
+
+
+def test_slide_estatico_revela_o_que_o_js_revelaria():
+    """
+    O slide se CONSTRÓI durante a fala: blocos nascem em `.fd-hidden` e o vídeo
+    os revela por JS. Uma captura estática não roda esse JS — a primeira
+    imagem de LinkedIn saiu com um comparativo de duas colunas mostrando só a
+    da esquerda, e com um vão no meio onde estaria o resto.
+    """
+    from social_publish import preparar_slide_estatico
+
+    pronto = preparar_slide_estatico(_SLIDE)
+    assert "eozore-estatico" in pronto
+    assert "display: revert !important" in pronto
+    assert "opacity: 1 !important" in pronto
+
+
+def test_slide_estatico_corrige_a_grafia_de_pronuncia():
+    """
+    O designer copia trechos do script, que vem em português fonético para o
+    TTS. Um slide de 02/09 saiu com "Tóquens por ciclo" queimado no vídeo — e
+    a mesma imagem virou post.
+    """
+    from social_publish import preparar_slide_estatico
+
+    pronto = preparar_slide_estatico(_SLIDE)
+    assert "Tóquens" not in pronto
+    assert "Tokens por ciclo" in pronto
+
+
+def test_linkedin_com_enquete_nao_leva_imagem():
+    """
+    O post de votação do LinkedIn não aceita mídia. Mandar as duas coisas faz
+    a API escolher uma em silêncio.
+    """
+    from datetime import datetime, timezone
+    from social_publish import montar_itens
+
+    plano = {"linkedin": [{
+        "id": "li-1", "gancho": "G", "corpo": "C", "dia_offset": 1,
+        "enquete": {"pergunta": "Onde valida o contrato?", "opcoes": ["CI", "Review"]},
+    }]}
+    item = montar_itens(plano, base=datetime(2026, 9, 10, tzinfo=timezone.utc),
+                        slides_video={"a": _SLIDE})[0]
+    assert item["format"] == "poll"
+    assert item["poll_data"]["options"] == ["CI", "Review"]
+    assert not item.get("_render"), "enquete não pode carregar imagem"
+
+
+def test_linkedin_sem_enquete_leva_a_ilustracao_do_video():
+    """
+    O slide_designer desenha 9 ilustrações por vídeo e nenhuma virava peça
+    social — o LinkedIn saía como texto puro.
+    """
+    from datetime import datetime, timezone
+    from social_publish import montar_itens
+
+    plano = {"linkedin": [{"id": "li-1", "gancho": "G", "corpo": "C", "dia_offset": 1}]}
+    item = montar_itens(plano, base=datetime(2026, 9, 10, tzinfo=timezone.utc),
+                        slides_video={"a": _SLIDE})[0]
+    assert item["format"] == "text"
+    assert item["_render"], "o post devia carregar a ilustração do vídeo"
+    assert item["_render"][0]["size"] == (1920, 1080)

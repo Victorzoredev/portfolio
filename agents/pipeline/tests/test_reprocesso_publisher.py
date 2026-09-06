@@ -75,3 +75,49 @@ def test_falha_do_update_nao_vira_reupload():
     trecho = src[src.index("update_video_metadata"):]
     # O except em volta do update apenas registra e segue com o post_id antigo.
     assert "logger.warning" in trecho[:900]
+
+
+# ── Timeout de rede não pode custar uma produção ──────────────────────────────
+
+def test_upload_tenta_de_novo_em_falha_de_rede():
+    """
+    Em 02/09 um `Read timed out` numa conexão derrubou o upload inteiro. O
+    projeto ficou `published_partial`, e como a saída oferecida foi aprovar de
+    novo, o pacote foi refeito do zero — com o avatar do HeyGen gerado uma
+    SEGUNDA vez pela mesma fala. Um soluço de rede custou uma produção.
+
+    O protocolo é resumable justamente para isso, e o código não usava.
+    """
+    import inspect
+    from publisher_job.youtube_client import YouTubeClient, TENTATIVAS_POR_CHUNK
+
+    assert TENTATIVAS_POR_CHUNK >= 2
+    corpo = inspect.getsource(YouTubeClient._put_com_retry)
+    assert "requests.Timeout" in corpo and "requests.ConnectionError" in corpo
+
+
+def test_so_falha_de_rede_e_repetida():
+    """
+    Um 4xx do YouTube é resposta, não soluço: repetir não muda nada e só
+    atrasa o diagnóstico.
+    """
+    import inspect
+    from publisher_job.youtube_client import YouTubeClient
+
+    corpo = inspect.getsource(YouTubeClient._put_com_retry)
+    # A captura é específica; um `except Exception` engoliria erro de negócio.
+    assert "except Exception" not in corpo
+
+
+def test_retry_pergunta_ao_servidor_onde_parou():
+    """
+    Depois de um timeout não dá para saber se o chunk chegou. Reenviar do
+    offset local duplica ou pula bytes — o protocolo resumable responde até
+    onde recebeu, e é essa resposta que manda.
+    """
+    import inspect
+    from publisher_job.youtube_client import YouTubeClient
+
+    assert hasattr(YouTubeClient, "_offset_no_servidor")
+    corpo = inspect.getsource(YouTubeClient._offset_no_servidor)
+    assert "bytes */" in corpo, "o PUT de consulta usa Content-Range: bytes */total"

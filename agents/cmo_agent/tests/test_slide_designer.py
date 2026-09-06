@@ -34,3 +34,29 @@ def test_renomear_nao_toca_slide_container_nem_prefixos():
 
     original = '<div class="slide-container"><span class="slide-id">1</span></div>'
     assert _renomear_container_slide(original) == original
+
+
+def test_grafia_de_pronuncia_nao_chega_a_tela():
+    """
+    O script vem em português fonético para o TTS e o designer copia trechos
+    dele para o slide. Em 02/09 saiu "Tóquens por ciclo" queimado no vídeo, e
+    a mesma imagem virou post no LinkedIn. Certo para o áudio, erro de
+    português na tela.
+    """
+    from pronuncia import desfonetizar
+
+    html = '<div class="kpi">1M+</div><p>Tóquens por ciclo com prómpti e ê-pê-í</p>'
+    limpo = desfonetizar(html)
+    assert "Tóquens" not in limpo and "prómpti" not in limpo and "ê-pê-í" not in limpo
+    assert "Tokens" in limpo and "prompt" in limpo and "API" in limpo
+
+
+def test_desfonetizar_preserva_o_html():
+    """A troca é de palavra: tag, classe e atributo não podem ser tocados."""
+    from pronuncia import desfonetizar
+
+    html = '<div class="fd-hidden" id="fd2" data-teste="cache">quéxi</div>'
+    limpo = desfonetizar(html)
+    assert 'class="fd-hidden"' in limpo and 'id="fd2"' in limpo
+    assert 'data-teste="cache"' in limpo
+    assert ">cache<" in limpo

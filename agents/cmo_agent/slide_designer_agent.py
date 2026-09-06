@@ -388,6 +388,16 @@ async def run_slide_designer(
 
         html = _renomear_container_slide(html)
 
+        # A grafia de pronúncia não pode chegar à TELA.
+        #
+        # O script vem em português fonético para o ElevenLabs ("tóquens",
+        # "prómpti", "ê-pê-í"), e o designer copia trechos dele para o slide.
+        # Um slide de 02/09 saiu com "Tóquens por ciclo para falhas
+        # estruturais básicas" queimado no vídeo — e depois reaproveitado como
+        # imagem de post. Certo para o áudio, erro de português na tela.
+        from pronuncia import desfonetizar
+        html = desfonetizar(html)
+
         if _is_valid_slide_html(html, width, height) and not _narracao_vazou_para_a_tela(
             html, segment.get("script", "")
         ):

@@ -38,7 +38,7 @@ def li(id="li-01", tipo=CTATipo.SALVAR, copy_skill="copy-aida"):
         id=id, copy_skill_id=copy_skill,
         gancho="Um LLM não faz inferência causal.", cta=cta_sem_link(tipo),
         lacuna="O código do teste Z que roda em produção.", dia_offset=1,
-        corpo="x" * 400,
+        corpo="x" * 1400,
     )
 
 
@@ -111,7 +111,7 @@ def test_linkedin_recusa_link_no_corpo():
         PostLinkedIn(
             id="li-01", copy_skill_id="copy-aida", gancho="g" * 20,
             cta=cta_sem_link(), lacuna="l" * 20, dia_offset=1,
-            corpo="Confira mais em [LINK_CANAL]. " + "x" * 300,
+            corpo="Confira mais em [LINK_CANAL]. " + "x" * 1300,
         )
 
 
@@ -121,7 +121,7 @@ def test_linkedin_recusa_link_no_cta_visivel():
         PostLinkedIn(
             id="li-01", copy_skill_id="copy-aida", gancho="g" * 20,
             cta=cta(texto="Veja mais em [LINK_CANAL]"),
-            lacuna="l" * 20, dia_offset=1, corpo="x" * 400,
+            lacuna="l" * 20, dia_offset=1, corpo="x" * 1400,
         )
 
 
@@ -129,7 +129,7 @@ def test_linkedin_aceita_link_no_comentario_fixado():
     post = PostLinkedIn(
         id="li-01", copy_skill_id="copy-aida", gancho="g" * 20,
         cta=CTA(texto="O link está no comentário", tipo=CTATipo.ASSISTIR, skill_id="cta-assistir"),
-        lacuna="l" * 20, dia_offset=1, corpo="x" * 400,
+        lacuna="l" * 20, dia_offset=1, corpo="x" * 1400,
         comentario_fixado="O vídeo completo está aqui: [LINK_CANAL]",
     )
     assert "[LINK_CANAL]" in post.comentario_fixado
@@ -141,7 +141,7 @@ def test_linkedin_recusa_comentario_fixado_sem_link():
     with pytest.raises(ValidationError, match="carregar o link"):
         PostLinkedIn(
             id="li-01", copy_skill_id="copy-aida", gancho="g" * 20,
-            cta=cta_sem_link(), lacuna="l" * 20, dia_offset=1, corpo="x" * 400,
+            cta=cta_sem_link(), lacuna="l" * 20, dia_offset=1, corpo="x" * 1400,
             comentario_fixado="Obrigado por ler!",
         )
 
@@ -265,11 +265,21 @@ def _plano(*, ctas=None, copies=None, stories_convertem=True):
 
     li_cta = (CTA(texto="O link está no comentário", tipo=ctas[0], skill_id="cta-assistir")
               if ctas[0] == CTATipo.ASSISTIR else cta_sem_link(ctas[0]))
-    linkedin = [PostLinkedIn(
-        id="li-01", copy_skill_id=copies[0], gancho="g" * 20, cta=li_cta,
-        lacuna="l" * 20, dia_offset=1, corpo="x" * 400,
-        comentario_fixado="[LINK_CANAL]" if ctas[0] == CTATipo.ASSISTIR else None,
-    )]
+    # Dois posts e corpo de 600+: o mínimo do schema subiu porque post no piso
+    # antigo (200 chars) acabava antes de desenvolver a ideia e lia como
+    # cortado no meio.
+    linkedin = [
+        PostLinkedIn(
+            id="li-01", copy_skill_id=copies[0], gancho="g" * 20, cta=li_cta,
+            lacuna="l" * 20, dia_offset=1, corpo="x" * 1400,
+            comentario_fixado="[LINK_CANAL]" if ctas[0] == CTATipo.ASSISTIR else None,
+        ),
+        PostLinkedIn(
+            id="li-02", copy_skill_id=copies[0], gancho="h" * 20,
+            cta=cta_sem_link(CTATipo.SALVAR),
+            lacuna="m" * 20, dia_offset=4, corpo="y" * 1400,
+        ),
+    ]
 
     threads_ = [PostThreads(
         id="th-01", copy_skill_id=copies[1], gancho="g" * 20, cta=cta_sem_link(ctas[1]),
@@ -278,19 +288,30 @@ def _plano(*, ctas=None, copies=None, stories_convertem=True):
                "segunda ideia, distinta das anteriores por completo"],
     )]
 
-    carrossel_ = [Carrossel(
-        id="ca-01", copy_skill_id=copies[2], gancho="g" * 20, cta=cta_sem_link(ctas[2]),
-        lacuna="l" * 20, dia_offset=3, legenda="legenda",
-        slides=[SlideCarrossel(numero=i, titulo=f"t{i}", corpo="c") for i in range(1, 5)],
-    )]
+    # Dois carrosséis: o feed é o ativo que dura, e o mínimo subiu de 1 para 2.
+    carrossel_ = [
+        Carrossel(
+            id=f"ca-{n:02d}", copy_skill_id=copies[2], gancho="g" * 20,
+            cta=cta_sem_link(ctas[2]), lacuna="l" * 20, dia_offset=3 + n,
+            legenda="legenda",
+            slides=[SlideCarrossel(numero=i, titulo=f"t{i}", corpo="c") for i in range(1, 5)],
+        )
+        for n in range(2)
+    ]
 
     # 3 das 10 levam direto ao vídeo — stories reais na prática convertem
     # bem, é o formato mais próximo do link-in-bio. O resto trabalha alcance.
-    conversoras = {(0, 0), (2, 0), (4, 1)} if stories_convertem else set()
+    # 6 sequências, dentro da nova faixa de 5 a 8. Eram 10, e o teto caiu para
+    # 8 porque com campanhas sobrepostas o perfil virava só story.
+    # 6 sequências, uma por dia, dentro da nova faixa de 5 a 8. Eram 10 em 5
+    # dias; o teto caiu para 8 porque com campanhas sobrepostas o perfil
+    # virava só story. Uma por dia também satisfaz o diagnóstico de
+    # concentração, que reclama quando tudo empilha em poucos dias.
+    conversoras = {0, 3} if stories_convertem else set()
     stories_ = [
-        story(id=f"st-{d:02d}-{n}", copy_skill=copies[3], dia_offset=d,
-             tipo=CTATipo.ASSISTIR if (d, n) in conversoras else CTATipo.SALVAR)
-        for d in range(5) for n in range(2)
+        story(id=f"st-{d:02d}", copy_skill=copies[3], dia_offset=d,
+             tipo=CTATipo.ASSISTIR if d in conversoras else CTATipo.SALVAR)
+        for d in range(6)
     ]
 
     yt = [PostYouTubeCommunity(
@@ -308,7 +329,8 @@ def _plano(*, ctas=None, copies=None, stories_convertem=True):
 
 def test_plano_conta_as_pecas():
     p = _plano()
-    assert p.total_pecas() == 1 + 1 + 1 + 10 + 1
+    # 2 linkedin + 1 threads + 2 carrossel + 6 stories + 1 comunidade
+    assert p.total_pecas() == 2 + 1 + 2 + 6 + 1
 
 
 def test_plano_equilibrado_nao_gera_aviso():
@@ -404,3 +426,52 @@ def test_lote_stories_fica_abaixo_do_teto_de_array_aninhado():
         "que é mais pesado que frames sozinho). Mantenha bem abaixo da "
         "margem e gere a semana em lotes (terços), não numa chamada só."
     )
+
+
+# ── Lote e plano têm que fechar ───────────────────────────────────────────────
+
+def test_lotes_cabem_no_plano():
+    """
+    O lote é o que o modelo devolve por chamada; a soma dos lotes é validada
+    contra o `PlanoSocial`. Um piso de lote acima do teto do plano faz TODA
+    geração falhar na montagem, sem chamada nova ao Vertex mas com o ciclo
+    perdido.
+
+    Aconteceu ao baixar a cota de stories de 10-21 para 5-8: os 3 lotes de
+    4 a 6 somavam no mínimo 12, e nenhum plano podia ser montado.
+    """
+    from social_schemas import (
+        LoteCarrossel, LoteLinkedIn, LoteStories, LoteThreads,
+        LoteYouTubeCommunity, PlanoSocial,
+    )
+
+    def faixa(modelo):
+        c = modelo.model_fields["pecas"].metadata
+        minimo = next((m.min_length for m in c if hasattr(m, "min_length")), 0)
+        maximo = next((m.max_length for m in c if hasattr(m, "max_length")), 10**6)
+        return minimo, maximo
+
+    def faixa_plano(campo):
+        c = PlanoSocial.model_fields[campo].metadata
+        minimo = next((m.min_length for m in c if hasattr(m, "min_length")), 0)
+        maximo = next((m.max_length for m in c if hasattr(m, "max_length")), 10**6)
+        return minimo, maximo
+
+    # (lote, campo do plano, quantas chamadas somam nesse campo)
+    for modelo, campo, chamadas in (
+        (LoteLinkedIn, "linkedin", 1),
+        (LoteThreads, "threads", 1),
+        (LoteCarrossel, "carrossel", 1),
+        (LoteYouTubeCommunity, "youtube_community", 1),
+        (LoteStories, "stories", 2),   # graph/nodes.py soma DOIS lotes
+    ):
+        lo, hi = faixa(modelo)
+        p_lo, p_hi = faixa_plano(campo)
+        assert lo * chamadas >= p_lo, (
+            f"{campo}: {chamadas} lote(s) somam no mínimo {lo * chamadas}, "
+            f"abaixo do piso {p_lo} do plano"
+        )
+        assert hi * chamadas <= p_hi, (
+            f"{campo}: {chamadas} lote(s) somam até {hi * chamadas}, "
+            f"acima do teto {p_hi} do plano"
+        )

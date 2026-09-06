@@ -37,6 +37,19 @@ TOKEN_ENDPOINT  = "https://oauth2.googleapis.com/token"
 # Chunk size para resumable upload: 8 MB
 CHUNK_SIZE = 8 * 1024 * 1024
 
+# Tentativas por chunk antes de desistir do upload. Três cobre o soluço de
+# rede sem transformar uma indisponibilidade real numa espera de minutos.
+TENTATIVAS_POR_CHUNK = 3
+ESPERA_ENTRE_TENTATIVAS_S = 4
+
+
+class _ChunkRetomado(Exception):
+    """O servidor já tem mais bytes do que o offset local — realinhar."""
+
+    def __init__(self, offset: int):
+        super().__init__(f"retomar de {offset}")
+        self.offset = offset
+
 
 class YouTubeClient:
     """
@@ -212,8 +225,72 @@ class YouTubeClient:
         with open(source, "rb") as f:
             return f.read()
 
+    def _put_com_retry(self, upload_url, headers, chunk, offset, total_size):
+        """
+        Um chunk, com nova tentativa em falha de REDE.
+
+        Só timeout e queda de conexão são tentados de novo — um 4xx do YouTube
+        é resposta, não soluço, e repetir não muda nada. Antes de reenviar,
+        pergunta ao servidor até onde ele recebeu: depois de um timeout não dá
+        para saber se o chunk chegou, e reenviar às cegas duplica ou pula
+        bytes.
+        """
+        import time as _t
+        ultima: Exception | None = None
+        for tentativa in range(1, TENTATIVAS_POR_CHUNK + 1):
+            try:
+                return requests.put(upload_url, headers=headers, data=chunk, timeout=120)
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                ultima = exc
+                logger.warning(
+                    "[youtube] chunk em %d/%d falhou por rede (tentativa %d/%d): %s",
+                    offset, total_size, tentativa, TENTATIVAS_POR_CHUNK, str(exc)[:120],
+                )
+                if tentativa == TENTATIVAS_POR_CHUNK:
+                    break
+                _t.sleep(ESPERA_ENTRE_TENTATIVAS_S * tentativa)
+                confirmado = self._offset_no_servidor(upload_url, total_size)
+                if confirmado != offset:
+                    raise _ChunkRetomado(confirmado) from exc
+        raise RuntimeError(
+            f"YouTube upload: chunk em {offset}/{total_size} falhou "
+            f"{TENTATIVAS_POR_CHUNK}x por rede — {ultima}"
+        )
+
+    def _offset_no_servidor(self, upload_url: str, total_size: int) -> int:
+        """
+        Quanto o YouTube já recebeu, perguntado a ELE.
+
+        É o que torna o retry seguro: depois de um timeout não dá para saber
+        se o chunk chegou, e reenviar do offset local pode duplicar ou pular
+        bytes. O protocolo resumable responde a um PUT vazio com
+        `Content-Range: bytes */total` dizendo até onde recebeu.
+        """
+        r = requests.put(
+            upload_url,
+            headers={
+                "Authorization": f"Bearer {self._get_access_token()}",
+                "Content-Length": "0",
+                "Content-Range": f"bytes */{total_size}",
+            },
+            timeout=60,
+        )
+        if r.status_code in (200, 201):
+            return total_size
+        intervalo = r.headers.get("Range", "")
+        return int(intervalo.split("-")[1]) + 1 if intervalo else 0
+
     def _resumable_upload(self, upload_url: str, data: bytes, total_size: int) -> str:
-        """Envia vídeo em chunks via resumable upload protocol."""
+        """
+        Envia vídeo em chunks via resumable upload protocol.
+
+        Cada chunk é tentado mais de uma vez. O protocolo é resumable
+        justamente para isso, e o código não usava: um `Read timed out` numa
+        conexão derrubava o upload inteiro. Em 02/09 foi o que aconteceu — e
+        como a interface só oferecia aprovar de novo, o pacote foi refeito do
+        zero, com o avatar do HeyGen gerado uma SEGUNDA vez pela mesma fala.
+        Um soluço de rede custou uma produção inteira.
+        """
         offset = 0
         while offset < total_size:
             chunk = data[offset: offset + CHUNK_SIZE]
@@ -223,7 +300,13 @@ class YouTubeClient:
                 "Content-Length": str(len(chunk)),
                 "Content-Range":  f"bytes {offset}-{end}/{total_size}",
             }
-            r = requests.put(upload_url, headers=headers, data=chunk, timeout=120)
+            try:
+                r = self._put_com_retry(upload_url, headers, chunk, offset, total_size)
+            except _ChunkRetomado as retomada:
+                # O servidor já tinha mais bytes do que pensávamos: realinha e
+                # segue de onde ele parou, sem reenviar o que chegou.
+                offset = retomada.offset
+                continue
 
             if r.status_code in (200, 201):
                 video_id = r.json().get("id")

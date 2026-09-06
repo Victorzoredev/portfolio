@@ -134,17 +134,80 @@ class PecaBase(BaseModel):
     )
 
 
+class EnqueteLinkedIn(BaseModel):
+    """
+    Enquete nativa do LinkedIn.
+
+    O cliente da API já sabia publicar (`format: "poll"` + `poll_data`) e
+    nenhum plano jamais gerou uma: o schema não tinha o campo. Capacidade
+    pronta e nunca usada.
+    """
+
+    pergunta: str = Field(
+        min_length=15, max_length=140,
+        description="A escolha em disputa, em uma linha. O LinkedIn corta em 140.",
+    )
+    opcoes: List[str] = Field(
+        min_length=2, max_length=4,
+        description=(
+            "De 2 a 4 opções, no máximo 30 caracteres cada — é o teto do "
+            "LinkedIn. Cada uma tem que ser uma posição que alguém realmente "
+            "defende; opção de palha esvazia a enquete."
+        ),
+    )
+
+    @field_validator("opcoes")
+    @classmethod
+    def _opcoes_cabem(cls, v: List[str]) -> List[str]:
+        longas = [o for o in v if len(o) > 30]
+        if longas:
+            raise ValueError(
+                f"opção acima de 30 caracteres (o LinkedIn trunca): {longas[0]!r}"
+            )
+        return v
+
+
 class PostLinkedIn(PecaBase):
     corpo: str = Field(
-        min_length=200, max_length=1300,
+        min_length=1200, max_length=2600,
         description=(
-            "Post completo. Tom técnico e direto, quebras de linha curtas. "
-            "Entrega UM insight fechado e para. Não resume o vídeo inteiro."
+            "Post completo, 200 a 430 palavras.\n\n"
+            "A faixa vem do sinal que o LinkedIn mais pesa hoje, que é DWELL "
+            "TIME — quanto tempo a pessoa fica no post. Posts que seguram 61s "
+            "ou mais convertem a ~15% de engajamento; os de 0 a 3s, a ~1%. "
+            "Texto de 300 a 400 palavras e 20+ frases é o que sustenta essa "
+            "permanência. O limite antigo (200 a 1300 caracteres) produzia "
+            "posts de 100 a 220 palavras: abaixo até do PISO da faixa útil.\n\n"
+            "AS DUAS PRIMEIRAS LINHAS decidem tudo. É só isso que aparece "
+            "antes do 'ver mais', e é ali que a pessoa escolhe continuar. "
+            "Ponha a afirmação mais forte no começo — o LinkedIn premia quem "
+            "entrega logo, não quem constrói suspense.\n\n"
+            "QUEBRE EM BLOCOS CURTOS, com linha em branco entre eles. Texto "
+            "formatado sustenta ~40% mais permanência que um bloco corrido.\n\n"
+            "Estrutura: para QUEM é, o problema concreto, o MECANISMO (por que "
+            "acontece), o que fazer, e o que muda depois. Cite ferramenta, "
+            "versão e nome de opção — termo específico ajuda o LinkedIn a "
+            "categorizar o post e é o que faz alguém SALVAR.\n\n"
+            "Escreva para ser salvo e comentado, não curtido: comentário pesa "
+            "cerca de 15x mais que curtida, e salvamento sinaliza valor "
+            "duradouro. Um post que só enuncia o problema e manda assistir não "
+            "entrega nada — a maioria nunca sai do feed."
         ),
     )
     hashtags: List[str] = Field(
         default_factory=list, max_length=3,
         description="No máximo 3, sem '#' no valor.",
+    )
+    enquete: Optional["EnqueteLinkedIn"] = Field(
+        default=None,
+        description=(
+            "Enquete NATIVA do LinkedIn, quando a peça ganha mais perguntando "
+            "do que afirmando. Use no máximo em UMA das peças do plano: "
+            "enquete rende alcance, mas duas seguidas viram truque e o "
+            "público técnico percebe. Boa quando existe uma escolha real de "
+            "engenharia em disputa; ruim quando a resposta é óbvia — "
+            "'você testa seu código?' não é pergunta, é constrangimento."
+        ),
     )
     comentario_fixado: Optional[str] = Field(
         default=None, max_length=200,
@@ -430,14 +493,20 @@ class PlanoSocial(BaseModel):
         min_length=20, max_length=280,
         description="O que a pessoa ganha assistindo. Todas as lacunas apontam para isto.",
     )
-    linkedin:  List[PostLinkedIn]         = Field(min_length=1, max_length=4)
+    linkedin:  List[PostLinkedIn]         = Field(min_length=2, max_length=4)
     threads:   List[PostThreads]          = Field(min_length=1, max_length=3)
-    carrossel: List[Carrossel]            = Field(min_length=1, max_length=2)
-    # 2 a 3 publicações de stories POR DIA — cada uma é uma Story (3-4 frames),
-    # não um frame solto. Para uma janela de ~7 dias isso é de 10 a 21 posts
-    # de stories. Volume alto de propósito: é o formato mais barato de repetir
-    # o convite ao vídeo sem cansar quem vê o feed principal.
-    stories:   List[Story]                = Field(min_length=10, max_length=21)
+    # O FEED é o ativo que dura: um carrossel continua sendo encontrado meses
+    # depois, uma story some em 24h. Eram 1 a 2 por campanha contra 10 a 21
+    # stories — com 3 ou 4 vídeos por mês as campanhas se sobrepõem e o perfil
+    # virava só story, com o feed quase parado.
+    carrossel: List[Carrossel]            = Field(min_length=2, max_length=4)
+    # Story é APOIO, não o corpo do plano.
+    #
+    # Eram 10 a 21 por campanha, o que dava 4 a 7 sequências por dia quando
+    # duas campanhas coincidiam — 12 a 28 frames diários, muito além do que
+    # uma audiência técnica assiste. Cada uma tem 3-4 frames, então 5 a 8
+    # sequências já cobrem a semana com uma por dia.
+    stories:   List[Story]                = Field(min_length=5, max_length=8)
     youtube_community: List[PostYouTubeCommunity] = Field(
         default_factory=list, max_length=3,
         description="Posts na aba Comunidade — alcançam quem já é inscrito.",
@@ -552,23 +621,29 @@ class PlanoSocial(BaseModel):
 # soma três lotes em Python, onde o limite de 10-21 do PlanoSocial.stories
 # é validado sem tocar o Vertex de novo.
 
+# Os limites de LOTE têm que fechar com os do PlanoSocial: o lote é o que o
+# modelo devolve por chamada, e a soma dos lotes é validada contra o plano. Um
+# piso de lote acima do teto do plano faz TODA geração falhar na montagem —
+# sem chamada nova ao Vertex, mas com o ciclo perdido.
 class LoteLinkedIn(BaseModel):
-    pecas: List[PostLinkedIn] = Field(min_length=1, max_length=4)
+    pecas: List[PostLinkedIn] = Field(min_length=2, max_length=4)
 
 class LoteThreads(BaseModel):
     pecas: List[PostThreads] = Field(min_length=1, max_length=3)
 
 class LoteCarrossel(BaseModel):
-    pecas: List[Carrossel] = Field(min_length=1, max_length=2)
+    pecas: List[Carrossel] = Field(min_length=2, max_length=4)
 
 class LoteStories(BaseModel):
     """
-    Cobre só um TERÇO da semana — ver nota acima sobre o teto de array
-    aninhado. min_length=4 é proposital: 3 lotes somados garantem pelo
-    menos 12 peças mesmo no pior caso, folga acima do piso de 10 que
-    PlanoSocial.stories exige (o pior caso de 3×3=9 ficaria abaixo do piso).
+    Cobre METADE da semana — ver nota acima sobre o teto de array aninhado.
+
+    Eram TRÊS lotes de 4 a 6, somando 12 a 18. Quando a cota de stories caiu
+    para 5-8 (o perfil estava virando só story), o piso de 12 passou a ficar
+    ACIMA do teto do plano e nenhuma montagem podia dar certo. Dois lotes de
+    3 a 4 somam 6 a 8, dentro da faixa.
     """
-    pecas: List[Story] = Field(min_length=4, max_length=6)
+    pecas: List[Story] = Field(min_length=3, max_length=4)
 
 class LoteYouTubeCommunity(BaseModel):
     pecas: List[PostYouTubeCommunity] = Field(min_length=1, max_length=3)

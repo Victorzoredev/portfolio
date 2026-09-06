@@ -226,6 +226,52 @@ def story_frame_html(texto: str, ordem: int, total: int, enquete: Optional[str] 
 </div>""", *STORY_SIZE, padding=100, padding_top=STORY_SAFE_TOP, padding_bottom=STORY_SAFE_BOTTOM)
 
 
+# ── Slide do vídeo → imagem estática ──────────────────────────────────────────
+
+# Estilo injetado no slide para congelá-lo no estado FINAL.
+#
+# O slide é desenhado para se CONSTRUIR ao longo da fala: blocos nascem em
+# `.fd-hidden` (display:none) e o vídeo os revela por JS. Uma captura estática
+# não roda esse JS, então a imagem sai com o slide pela metade — foi o que
+# aconteceu com a primeira imagem de LinkedIn: um comparativo de duas colunas
+# saiu só com a da esquerda, e ainda com um vão no meio.
+#
+# `!important` em tudo porque o CSS vem do slide_designer e usa seletores de
+# id (`#yt-02 .fd`), que vencem qualquer classe.
+CSS_SLIDE_ESTATICO = """
+<style id="eozore-estatico">
+  .fd-hidden { display: revert !important; }
+  .fd, .fd-hidden {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+    visibility: visible !important;
+  }
+  #hud, #progress-bar { display: none !important; }
+</style>
+"""
+
+
+def preparar_slide_estatico(html: str) -> str:
+    """
+    Congela um slide do vídeo no estado final, para virar imagem de post.
+
+    Duas correções, ambas invisíveis até alguém olhar a imagem publicada:
+
+    1. Todo bloco revelado por JS aparece. Sem isso a imagem mostra só o
+       primeiro, porque a captura acontece antes de qualquer reveal.
+    2. A grafia de pronúncia volta a ser grafia real. O slide_designer copia
+       o texto do script, que está em português fonético para o TTS — e um
+       slide de 02/09 saiu com "Tóquens por ciclo" queimado.
+    """
+    from pronuncia import desfonetizar
+
+    html = desfonetizar(html)
+    if "</head>" in html:
+        return html.replace("</head>", f"{CSS_SLIDE_ESTATICO}</head>", 1)
+    return CSS_SLIDE_ESTATICO + html
+
+
 # ── Agenda ────────────────────────────────────────────────────────────────────
 
 def _quando(base: datetime, dia: int, hora_brt: int, minutos_extra: int = 0) -> str:
@@ -403,12 +449,24 @@ def montar_itens(
     # ── LinkedIn ──────────────────────────────────────────────────────────────
     for i, p in enumerate(plano.get("linkedin") or []):
         itens.append(_doc(
-            platform="linkedin", format="text",
+            platform="linkedin",
+            # "poll" quando o plano pediu enquete; "text" no resto. É por este
+            # campo que o publisher escolhe entre post e votação.
+            format="poll" if p.get("enquete") else "text",
             title=(p.get("gancho") or "")[:120],
             copy=montar_copy(p.get("gancho"), p.get("corpo"), p.get("cta"), p.get("hashtags")),
             # O link fora do corpo é o que preserva o alcance no LinkedIn; o
             # publisher posta isto como primeiro comentário.
             comentario_fixado=p.get("comentario_fixado") or None,
+            # Enquete NATIVA quando o plano pediu. `format` é o que o
+            # publisher lê para escolher entre post e votação; sem ele a
+            # enquete viraria um post de texto com a pergunta solta.
+            **({
+                "poll_data": {
+                    "question": (p.get("enquete") or {}).get("pergunta", ""),
+                    "options":  (p.get("enquete") or {}).get("opcoes", []),
+                },
+            } if p.get("enquete") else {}),
             scheduled_at=quando("linkedin", p.get("dia_offset", 1)),
             # A ILUSTRAÇÃO DO VÍDEO vira a imagem do post.
             #
@@ -417,11 +475,14 @@ def montar_itens(
             # já existia: o slide_designer desenha 9 ilustrações por vídeo, no
             # sistema visual da marca, e nenhuma virava peça social. Era
             # trabalho pronto sendo descartado.
+            # Imagem só quando NÃO é enquete: o post de votação do LinkedIn
+            # não aceita mídia, e mandar as duas coisas faz a API escolher uma
+            # em silêncio.
             **({"_render": [{
-                "html": slides[i % len(slides)],
+                "html": preparar_slide_estatico(slides[i % len(slides)]),
                 "size": SLIDE_SIZE,
                 "nome": f"li_{p.get('id', i)}",
-            }]} if slides else {}),
+            }]} if slides and not p.get("enquete") else {}),
             **comum,
         ))
 

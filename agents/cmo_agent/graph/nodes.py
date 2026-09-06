@@ -629,7 +629,33 @@ async def no_social(estado: EstadoMarketing) -> dict:
                 "no comentário ('o link está no primeiro comentário', "
                 "'deixei o link fixado aqui embaixo'), e o marcador vai em "
                 "`comentario_fixado`. CTAs de engajamento puro (salvar, marcar, "
-                "comentar) não precisam de comentario_fixado — deixe None."
+                "comentar) não precisam de comentario_fixado — deixe None.\n\n"
+                "AS DUAS PRIMEIRAS LINHAS são o post inteiro para quem rola o "
+                "feed: é só isso que aparece antes do 'ver mais'. Ponha a "
+                "afirmação mais forte ali, sem aquecimento. O algoritmo premia "
+                "quem entrega logo, não quem constrói suspense — e o `gancho` "
+                "não pode ser uma promessa do que vem depois, tem que ser a "
+                "coisa em si.\n\n"
+                "TAMANHO E RITMO: 200 a 430 palavras, em blocos curtos com "
+                "linha em branco entre eles. O sinal que mais pesa hoje é o "
+                "tempo de permanência: posts que seguram mais de um minuto "
+                "engajam ~15%, os de poucos segundos ~1%. Texto formatado "
+                "sustenta cerca de 40% mais permanência que bloco corrido.\n\n"
+                "PROFUNDIDADE: o post precisa valer sozinho, para quem nunca vai "
+                "clicar. Nomeie para QUEM é, dê o problema concreto, explique o "
+                "MECANISMO (por que acontece), diga o que fazer e o que muda "
+                "depois. Cite ferramenta, versão e nome de opção — o termo "
+                "específico é o que faz alguém SALVAR o post, e salvamento "
+                "sinaliza valor duradouro. Escreva para ser salvo e comentado, "
+                "não curtido: comentário pesa cerca de 15x mais que curtida.\n\n"
+                "ENQUETE: no máximo UMA peça do plano usa `enquete`, e só quando "
+                "existe uma escolha real de engenharia em disputa — onde validar "
+                "contrato, o que cortar primeiro numa esteira lenta. Cada opção "
+                "tem no máximo 30 caracteres e precisa ser uma posição que "
+                "alguém defende de verdade. Não use quando a resposta é óbvia: "
+                "'você testa seu código?' não é pergunta, é constrangimento, e o "
+                "público técnico percebe. Peça com enquete NÃO leva imagem — o "
+                "post de votação do LinkedIn não aceita mídia."
             ),
             "carrossel": (
                 "O Instagram NÃO renderiza link clicável em legenda nem em "
@@ -677,16 +703,16 @@ async def no_social(estado: EstadoMarketing) -> dict:
                 temperature=0.6,
             )
 
-        async def stories_terco(rotulo: str, offset_min: int, offset_max: int):
-            # LoteStories cobre só um terço da semana — ver o comentário em
+        async def stories_metade(rotulo: str, offset_min: int, offset_max: int):
+            # LoteStories cobre METADE da semana — ver o comentário em
             # social_schemas.py sobre o teto de array aninhado do Vertex.
             return "stories", await generate_structured(
                 LoteStories,
                 prompt=(
                     f"{base}"
                     f"Gere as publicações de stories da {rotulo} da semana "
-                    f"(dia_offset de {offset_min} a {offset_max}). De 2 a 3 "
-                    f"publicações por dia, cada uma com 3 a 4 frames.\n\n"
+                    f"(dia_offset de {offset_min} a {offset_max}). UMA publicação "
+                    f"por dia, cada uma com 3 a 4 frames.\n\n"
                     f"━━━ REGRAS DESTE CANAL ━━━\n{REGRAS_POR_CANAL.get('stories', '')}"
                 ),
                 system_instruction=instrucao,
@@ -695,9 +721,8 @@ async def no_social(estado: EstadoMarketing) -> dict:
 
         resultados = await asyncio.gather(
             *[um_canal(c, m, d) for c, (m, d) in CANAIS.items()],
-            stories_terco("primeira parte", 0, 2),
-            stories_terco("segunda parte", 3, 5),
-            stories_terco("terceira parte", 6, 7),
+            stories_metade("primeira metade", 1, 4),
+            stories_metade("segunda metade", 5, 7),
             return_exceptions=True,
         )
 
