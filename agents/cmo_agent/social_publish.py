@@ -80,6 +80,30 @@ SLOTS_OVERFLOW_BRT = (10, 15, 20, 8, 16, 21)
 # campanha inteira; além disso a peça perde relação com o vídeo que ela
 # promove, e é melhor aceitar a coincidência do que publicar fora de contexto.
 DIAS_MAX_BUSCA = 7
+
+# Ritmo de cada plataforma. Elas têm semanas OPOSTAS, e tratá-las igual foi o
+# que gastou inventário em horário morto.
+#
+# Medido na fila real de 06/09: 30% de TODAS as peças caíam em fim de semana,
+# uniformemente, porque a escada de horários era a mesma para todo mundo. No
+# Instagram isso é indiferente — o consumo é pessoal e o fim de semana até
+# rende. No LinkedIn é desperdício: 3 dos 11 posts saíram sábado ou domingo,
+# quando o público B2B não está lá. Na Comunidade do YouTube era pior, 43%.
+#
+# `evita_fds` empurra a peça para a próxima segunda em vez de publicar no
+# vazio. `slots` são as horas preferidas daquela plataforma, em ordem:
+#   - LinkedIn: manhã de dia útil, quando o feed profissional é aberto.
+#   - Comunidade: meio-dia e noite, quando o inscrito está no YouTube.
+#   - Instagram: meio-dia e noite; 9h é o pior horário de story e era onde
+#     45 das 155 peças estavam caindo.
+#   - Threads: conversa, funciona mais tarde.
+RITMO_POR_PLATAFORMA: dict[str, dict] = {
+    "linkedin":          {"slots": (9, 8, 12),      "evita_fds": True},
+    "youtube_community": {"slots": (12, 18, 9),     "evita_fds": True},
+    "threads":           {"slots": (12, 18, 9),     "evita_fds": False},
+    "instagram":         {"slots": (12, 18, 20, 9), "evita_fds": False},
+    "youtube_shorts":    {"slots": (18, 12, 20),    "evita_fds": False},
+}
 BRT_OFFSET_HOURS = 3
 
 # Frames de um mesmo story saem em sequência, não no mesmo instante: o
@@ -320,9 +344,20 @@ def _reservar(
     que esta montagem acabou de marcar, então as peças da campanha nova também
     não colidem entre si.
     """
+    ritmo   = RITMO_POR_PLATAFORMA.get(platform, {})
+    slots   = tuple(ritmo.get("slots") or SLOTS_BRT)
+    evita   = bool(ritmo.get("evita_fds"))
+    # Os degraus extras vêm depois das horas preferidas: só se usa 21h quando
+    # o resto do dia está tomado NAQUELA plataforma.
+    escada  = slots + tuple(h for h in SLOTS_OVERFLOW_BRT if h not in slots)
+
     dia = max(1, int(dia_offset or 0))
     for d in range(dia, dia + DIAS_MAX_BUSCA):
-        for hora in SLOTS_BRT + SLOTS_OVERFLOW_BRT:
+        if evita and (base + timedelta(days=d)).weekday() >= 5:
+            # Sábado ou domingo numa plataforma de dia útil: pula. Publicar
+            # aqui é queimar a peça — melhor ela sair segunda.
+            continue
+        for hora in escada:
             chave = _chave_agenda(platform, _quando(base, d, hora))
             if chave not in agenda:
                 agenda.add(chave)
@@ -334,7 +369,7 @@ def _reservar(
         "[social_publish] agenda de %s lotada a partir de D+%d; aceitando coincidência",
         platform, dia,
     )
-    return dia, SLOTS_BRT[0]
+    return dia, slots[0]
 
 
 # ── Montagem dos itens ────────────────────────────────────────────────────────

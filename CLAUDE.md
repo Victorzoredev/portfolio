@@ -193,6 +193,13 @@ dia, e nada acusou erro. Hoje `_pendentes_por_vencimento` pagina a fila toda e
 ordena por vencimento; o teto (`MAX_PUBLICACOES_POR_RODADA`) age na
 PUBLICAÇÃO, não na busca — limitar a busca é o defeito, não a proteção.
 
+**As plataformas têm semanas OPOSTAS.** `RITMO_POR_PLATAFORMA` dá a cada uma
+sua escada de horários e diz se ela evita fim de semana. Antes era uma escada
+só para todas: 30% das peças caíam em sábado ou domingo, o que é indiferente
+no Instagram e desperdício no LinkedIn (3 dos 11 posts) e na Comunidade do
+YouTube (43%). E 45 das 155 peças de Instagram saíam às 9h, o pior horário de
+story, por herdar a preferência do LinkedIn.
+
 **Um formato só entra na `social_queue` se o publisher souber publicá-lo.**
 Story do Instagram é uma imagem por documento: quatro frames num documento só
 publicam o primeiro e descartam três sem erro.

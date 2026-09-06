@@ -182,6 +182,12 @@ def test_dia_offset_do_modelo_e_respeitado():
 def test_pecas_do_mesmo_dia_ocupam_slots_diferentes():
     # Sem isto, três posts do mesmo dia saem todos às 9h e o publisher despeja
     # a campanha inteira numa execução.
+    #
+    # As horas vêm da escada DAQUELA plataforma (`RITMO_POR_PLATAFORMA`), não
+    # de uma lista única: LinkedIn é manhã de dia útil, Instagram é meio-dia e
+    # noite. O que este teste protege é que sejam DISTINTAS.
+    from social_publish import RITMO_POR_PLATAFORMA
+
     itens = montar(
         linkedin=[
             {"id": f"li-{n}", "gancho": "G", "corpo": "C", "hashtags": [], "dia_offset": 1}
@@ -189,7 +195,12 @@ def test_pecas_do_mesmo_dia_ocupam_slots_diferentes():
         ],
         threads=[], carrossel=[], stories=[], youtube_community=[],
     )
-    assert sorted(_hora_brt(i["scheduled_at"]) for i in itens) == sorted(SLOTS_BRT)
+    horas = [_hora_brt(i["scheduled_at"]) for i in itens]
+    assert len(set(horas)) == 3, f"horários repetidos: {horas}"
+    preferidas = set(RITMO_POR_PLATAFORMA["linkedin"]["slots"])
+    assert set(horas) <= preferidas, (
+        f"caiu fora da escada preferida do LinkedIn: {sorted(set(horas) - preferidas)}"
+    )
 
 
 def test_frames_do_mesmo_story_saem_em_sequencia():
@@ -449,3 +460,49 @@ def test_linkedin_sem_enquete_leva_a_ilustracao_do_video():
     assert item["format"] == "text"
     assert item["_render"], "o post devia carregar a ilustração do vídeo"
     assert item["_render"][0]["size"] == (1920, 1080)
+
+
+def test_linkedin_nao_agenda_em_fim_de_semana():
+    """
+    Plataforma de dia útil não gasta peça em sábado.
+
+    Medido na fila real de 06/09: 30% de TODAS as peças caíam em fim de
+    semana porque a escada de horários era a mesma para todo mundo. No
+    Instagram isso é indiferente; no LinkedIn são 3 dos 11 posts publicados
+    para um feed profissional vazio, e na Comunidade do YouTube eram 43%.
+    """
+    from datetime import datetime, timedelta, timezone
+    from social_publish import montar_itens
+
+    # Base numa SEXTA: o pior caso, a campanha começa colada no fim de semana.
+    base = datetime(2026, 9, 11, tzinfo=timezone.utc)
+    plano = {"linkedin": [
+        {"id": f"li-{n}", "gancho": "G", "corpo": "C", "dia_offset": n + 1}
+        for n in range(3)
+    ]}
+    for item in montar_itens(plano, base=base):
+        brt = datetime.fromisoformat(item["scheduled_at"]) - timedelta(hours=3)
+        assert brt.weekday() < 5, f"LinkedIn agendado num {brt:%A}: {item['scheduled_at']}"
+
+
+def test_instagram_pode_usar_fim_de_semana():
+    """
+    O inverso também é regra: empurrar story para segunda desperdiça o
+    domingo, que é quando o consumo pessoal acontece.
+    """
+    from social_publish import RITMO_POR_PLATAFORMA
+
+    assert RITMO_POR_PLATAFORMA["instagram"]["evita_fds"] is False
+    assert RITMO_POR_PLATAFORMA["linkedin"]["evita_fds"] is True
+
+
+def test_story_nao_prefere_as_9_da_manha():
+    """
+    9h era onde 45 das 155 peças de Instagram caíam, por herdar a escada do
+    LinkedIn. É o pior horário de story — o consumo é meio-dia e noite.
+    """
+    from social_publish import RITMO_POR_PLATAFORMA
+
+    slots = RITMO_POR_PLATAFORMA["instagram"]["slots"]
+    assert slots[0] != 9, "9h não pode ser a primeira escolha do Instagram"
+    assert 9 in slots, "9h continua como degrau, só não como preferência"
