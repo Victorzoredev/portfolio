@@ -254,6 +254,29 @@ class MetaClient:
         if image_url:
             post_data["image_url"] = image_url
 
+        # O Threads é a ÚNICA superfície da família Instagram onde link
+        # renderiza como cartão. Testado contra a API real em 06/09: o campo
+        # é validado de verdade — um valor inválido devolve "Param
+        # link_attachment is not a valid URI", enquanto o `link` do Story do
+        # Instagram aceita qualquer coisa e ignora em silêncio.
+        #
+        # Sem isto a URL ia como texto cru no meio do post: ocupa caracteres,
+        # não vira cartão e é menos clicável.
+        link = (data.get("link_attachment") or "").strip()
+        if link and not image_url:
+            # A API só aceita link em post de TEXTO; com imagem, é ignorado.
+            post_data["link_attachment"] = link
+
+        # Enquete nativa. Também testada: uma enquete com uma opção só é
+        # recusada com "A enquete não apresenta..." — o campo é real.
+        enquete = data.get("poll_attachment") or {}
+        if enquete.get("option_a") and enquete.get("option_b") and not image_url:
+            post_data["poll_attachment"] = json.dumps(
+                {k: v for k, v in enquete.items()
+                 if k in ("option_a", "option_b", "option_c", "option_d") and v},
+                ensure_ascii=False,
+            )
+
         r = requests.post(f"{THREADS_URL}/me/threads", data=post_data, timeout=30)
         res = r.json()
         if "id" not in res:

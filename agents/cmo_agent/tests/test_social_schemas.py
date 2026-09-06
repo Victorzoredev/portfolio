@@ -31,6 +31,21 @@ def cta_sem_link(tipo=CTATipo.SALVAR, texto="Salve para consultar depois",
     return CTA(texto=texto, tipo=tipo, skill_id=skill)
 
 
+def cta_story():
+    """
+    Story não tem salvar nem comentário — a ação dela é responder ou o sticker.
+    Usar `salvar` como preenchimento genérico era o que a regra nova pega.
+    """
+    return CTA(texto="Responde aqui como seu time faz",
+               tipo=CTATipo.RESPONDER, skill_id="cta-responder")
+
+
+def cta_comunidade():
+    """Quem lê a aba Comunidade já é inscrito e não pode salvar o post."""
+    return CTA(texto="Comenta qual camada te trava hoje",
+               tipo=CTATipo.COMENTAR, skill_id="cta-comentar")
+
+
 def li(id="li-01", tipo=CTATipo.SALVAR, copy_skill="copy-aida"):
     # Default sem link: CTA.tipo=ASSISTIR exigiria comentario_fixado, e a
     # maioria dos testes aqui não quer entrar nesse detalhe.
@@ -67,9 +82,10 @@ def frame(ordem=1, texto="texto do frame", ilustracao="fundo escuro com o títul
     return FrameStory(ordem=ordem, texto=texto, ilustracao=ilustracao)
 
 
-def story(id="st-01", copy_skill="copy-ppp", dia_offset=0, n_frames=3, tipo=CTATipo.SALVAR):
+def story(id="st-01", copy_skill="copy-ppp", dia_offset=0, n_frames=3, tipo=CTATipo.RESPONDER):
     return Story(
-        id=id, copy_skill_id=copy_skill, gancho="g" * 20, cta=cta_sem_link(tipo),
+        id=id, copy_skill_id=copy_skill, gancho="g" * 20,
+        cta=cta_story() if tipo is CTATipo.RESPONDER else cta_sem_link(tipo),
         lacuna="l" * 20, dia_offset=dia_offset,
         frames=[frame(ordem=i) for i in range(1, n_frames + 1)],
     )
@@ -77,7 +93,7 @@ def story(id="st-01", copy_skill="copy-ppp", dia_offset=0, n_frames=3, tipo=CTAT
 
 def comunidade(id="yc-01", copy_skill="copy-quest"):
     return PostYouTubeCommunity(
-        id=id, copy_skill_id=copy_skill, gancho="g" * 20, cta=cta_sem_link(),
+        id=id, copy_skill_id=copy_skill, gancho="g" * 20, cta=cta_comunidade(),
         lacuna="l" * 20, dia_offset=0,
         texto="Pergunta para quem já é inscrito: " + "x" * 30,
     )
@@ -181,7 +197,7 @@ def test_carrossel_exige_minimo_de_slides():
 
 def test_story_exige_de_3_a_4_frames():
     with pytest.raises(ValidationError):
-        Story(id="st-01", copy_skill_id="copy-ppp", gancho="g" * 20, cta=cta_sem_link(),
+        Story(id="st-01", copy_skill_id="copy-ppp", gancho="g" * 20, cta=cta_story(),
               lacuna="l" * 20, dia_offset=0, frames=[frame(1), frame(2)])
 
 
@@ -194,7 +210,7 @@ def test_frame_exige_ilustracao():
 def test_story_recusa_link_em_qualquer_frame():
     with pytest.raises(ValidationError, match="não pode conter link"):
         Story(
-            id="st-01", copy_skill_id="copy-ppp", gancho="g" * 20, cta=cta_sem_link(),
+            id="st-01", copy_skill_id="copy-ppp", gancho="g" * 20, cta=cta_story(),
             lacuna="l" * 20, dia_offset=0,
             frames=[frame(1), frame(2),
                     FrameStory(ordem=3, texto="Vê no [LINK_CANAL]", ilustracao="fundo escuro com destaque")],
@@ -249,7 +265,7 @@ def test_youtube_community_existe_como_canal():
 
 def test_youtube_community_aceita_enquete():
     p = PostYouTubeCommunity(
-        id="yc-01", copy_skill_id="copy-quest", gancho="g" * 20, cta=cta_sem_link(),
+        id="yc-01", copy_skill_id="copy-quest", gancho="g" * 20, cta=cta_comunidade(),
         lacuna="l" * 20, dia_offset=0, texto="x" * 30,
         enquete_opcoes=["Sim", "Não"],
     )
@@ -309,13 +325,15 @@ def _plano(*, ctas=None, copies=None, stories_convertem=True):
     # concentração, que reclama quando tudo empilha em poucos dias.
     conversoras = {0, 3} if stories_convertem else set()
     stories_ = [
+        # RESPONDER, não SALVAR: story não tem botão de salvar — a ação dela
+        # é resposta por DM ou toque no sticker.
         story(id=f"st-{d:02d}", copy_skill=copies[3], dia_offset=d,
-             tipo=CTATipo.ASSISTIR if d in conversoras else CTATipo.SALVAR)
+             tipo=CTATipo.ASSISTIR if d in conversoras else CTATipo.RESPONDER)
         for d in range(6)
     ]
 
     yt = [PostYouTubeCommunity(
-        id="yc-01", copy_skill_id=copies[4], gancho="g" * 20, cta=cta_sem_link(ctas[4]),
+        id="yc-01", copy_skill_id=copies[4], gancho="g" * 20, cta=cta_comunidade(),
         lacuna="l" * 20, dia_offset=0, texto="x" * 30,
     )]
 
@@ -474,4 +492,69 @@ def test_lotes_cabem_no_plano():
         assert hi * chamadas <= p_hi, (
             f"{campo}: {chamadas} lote(s) somam até {hi * chamadas}, "
             f"acima do teto {p_hi} do plano"
+        )
+
+
+# ── CTA precisa existir no posicionamento ─────────────────────────────────────
+
+def test_story_nao_pede_o_que_nao_existe():
+    """
+    Story não tem botão de salvar, não tem campo de comentário e não dá para
+    marcar alguém de dentro dela. No plano de 06/09, 8 das 15 stories pediam
+    uma dessas três — a pessoa que quis obedecer não achou o botão.
+    """
+    import pytest
+    from social_schemas import CTA, CTATipo, validar_cta_do_posicionamento
+
+    for tipo in (CTATipo.SALVAR, CTATipo.COMENTAR, CTATipo.MARCAR):
+        cta = CTA(texto="um texto qualquer", tipo=tipo, skill_id="x")
+        with pytest.raises(ValueError, match="não existe em instagram_story"):
+            validar_cta_do_posicionamento("instagram_story", cta)
+
+
+def test_story_aceita_o_que_ela_realmente_oferece():
+    """Resposta por DM e sticker existem; o link da bio também."""
+    from social_schemas import CTA, CTATipo, validar_cta_do_posicionamento
+
+    for tipo in (CTATipo.RESPONDER, CTATipo.ASSISTIR, CTATipo.COMPARTILHAR):
+        cta = CTA(texto="um texto qualquer", tipo=tipo, skill_id="x")
+        assert validar_cta_do_posicionamento("instagram_story", cta) is cta
+
+
+def test_feed_do_instagram_aceita_salvar():
+    """
+    O teto é por posicionamento, não por rede: o FEED tem salvar e comentar,
+    a story não. Tratar "Instagram" como uma coisa só erraria os dois lados.
+    """
+    from social_schemas import CTA, CTATipo, validar_cta_do_posicionamento
+
+    cta = CTA(texto="Salve este checklist", tipo=CTATipo.SALVAR, skill_id="x")
+    assert validar_cta_do_posicionamento("instagram_feed", cta) is cta
+
+
+def test_comunidade_nao_pede_para_seguir():
+    """Quem lê a aba Comunidade já é inscrito."""
+    import pytest
+    from social_schemas import CTA, CTATipo, validar_cta_do_posicionamento
+
+    cta = CTA(texto="Siga o canal para mais", tipo=CTATipo.SEGUIR, skill_id="x")
+    with pytest.raises(ValueError):
+        validar_cta_do_posicionamento("youtube_community", cta)
+
+
+def test_story_com_cta_impossivel_e_rejeitada_no_schema():
+    """A regra não pode ficar só na função: a peça inteira tem que ser barrada."""
+    import pytest
+    from pydantic import ValidationError
+    from social_schemas import Story
+
+    with pytest.raises(ValidationError, match="não existe em instagram_story"):
+        Story(
+            id="st-1", copy_skill_id="copy-pas", gancho="g" * 20,
+            cta={"texto": "Salve esta sequência", "tipo": "salvar", "skill_id": "x"},
+            lacuna="l" * 20, dia_offset=1,
+            frames=[
+                {"ordem": i, "texto": f"f{i}", "ilustracao": "uma ilustracao qualquer"}
+                for i in range(1, 4)
+            ],
         )

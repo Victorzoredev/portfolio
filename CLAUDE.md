@@ -193,6 +193,19 @@ dia, e nada acusou erro. Hoje `_pendentes_por_vencimento` pagina a fila toda e
 ordena por vencimento; o teto (`MAX_PUBLICACOES_POR_RODADA`) age na
 PUBLICAÇÃO, não na busca — limitar a busca é o defeito, não a proteção.
 
+**CTA que a interface não oferece é pedido impossível.** `CTAS_POR_POSICIONAMENTO`
+valida por POSICIONAMENTO, não por rede: o feed do Instagram tem salvar,
+comentar e marcar; a story não tem nenhum dos três — ela tem resposta (por DM)
+e sticker. No plano de 06/09, 8 das 15 stories pediam salvar, comentar ou
+marcar. Tratar "Instagram" como uma coisa só erra os dois lados.
+
+**O Threads é a única superfície da família Instagram onde link vira cartão.**
+`link_attachment` e `poll_attachment` são campos REAIS — verificados contra a
+API em 06/09 mandando valor inválido: o Threads recusa ("Param link_attachment
+is not a valid URI"), enquanto o `link` do Story do Instagram aceita qualquer
+coisa e ignora em silêncio. Não existe sticker de link por API; o caminho do
+Instagram é a bio, e isso não é contorno, é o único caminho.
+
 **O calendário é curado como um todo, depois de enfileirar.** `curador_agenda`
 roda no fim do `enfileirar` e olha a fila INTEIRA — a campanha nova já dentro.
 Cada peça achar seu horário livre resolve colisão e não resolve ritmo: a fila

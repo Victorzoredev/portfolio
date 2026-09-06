@@ -696,7 +696,14 @@ async def no_social(estado: EstadoMarketing) -> dict:
                     f"{base}"
                     f"Gere os {descricao} do plano da semana. Escolha o método de "
                     f"copy e o tipo de CTA que MELHOR servem a este canal — e "
-                    f"declare os ids escolhidos. Distribua em dia_offset de 0 a 7.\n\n"
+                    f"declare os ids escolhidos.\n\n"
+                    f"DISTRIBUIÇÃO NO TEMPO: a maior parte em dia_offset 0 a 7, "
+                    f"mas deixe ao menos UMA peça de LinkedIn ou Threads entre "
+                    f"D+10 e D+14. A campanha morria na primeira semana e o "
+                    f"vídeo continua no ar: num canal técnico, boa parte das "
+                    f"views chega DEPOIS dela, por busca. A peça tardia usa um "
+                    f"ângulo diferente do que já saiu — não é repost, é outra "
+                    f"porta para o mesmo vídeo.\n\n"
                     f"━━━ REGRAS DESTE CANAL ━━━\n{REGRAS_POR_CANAL.get(canal, '')}"
                 ),
                 system_instruction=instrucao,

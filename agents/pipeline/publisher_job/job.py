@@ -589,13 +589,20 @@ class PublisherJob:
             return data
 
         if platform == "threads":
+            # O link vira ANEXO, não texto.
+            #
+            # O Threads é a única superfície da família Instagram que
+            # renderiza link como cartão (`link_attachment`, verificado contra
+            # a API em 06/09). Colar a URL no meio do texto gasta caracteres,
+            # não vira cartão e clica pior. Continua indo no texto do último
+            # post quando é uma SÉRIE, porque o anexo só existe no post único.
             posts = data.get("thread_posts") or data.get("threadPosts")
             if isinstance(posts, list) and posts:
                 if not any(self._tem_link(p) for p in posts):
                     posts[-1] = f"{str(posts[-1]).rstrip()}\n\n{link}"
                     data["thread_posts"] = posts
-            elif not self._tem_link(data.get("copy")):
-                data["copy"] = f"{str(data.get('copy') or '').rstrip()}\n\n{link}"
+            else:
+                data.setdefault("link_attachment", link)
             return data
 
         if platform in ("youtube_community", "facebook"):

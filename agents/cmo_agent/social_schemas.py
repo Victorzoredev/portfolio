@@ -49,6 +49,59 @@ class CTATipo(str, Enum):
     SEGUIR     = "seguir"      # converte visitante em audiência recorrente
     COMPARTILHAR = "compartilhar"
     LER_ARTIGO = "ler_artigo"  # aprofundamento no blog
+    RESPONDER  = "responder"   # story: resposta por DM ou toque no sticker
+
+
+# O que cada POSICIONAMENTO realmente permite ao público fazer.
+#
+# Um CTA que pede o impossível não é um pedido fraco, é um pedido que a
+# interface não tem como atender — e a pessoa que quis obedecer não encontra
+# o botão. Medido no plano de 06/09: 8 das 15 stories pediam salvar, comentar
+# ou marcar, e story não oferece nenhuma das três. Story tem RESPOSTA (que vai
+# por DM) e STICKER (enquete, pergunta); não tem botão de salvar, não tem
+# campo de comentário e não dá para marcar alguém de dentro dela.
+CTAS_POR_POSICIONAMENTO: dict[str, set["CTATipo"]] = {
+    # No LinkedIn o link mora no primeiro comentário, então tudo é acionável.
+    "linkedin": {
+        CTATipo.ASSISTIR, CTATipo.SALVAR, CTATipo.MARCAR, CTATipo.COMENTAR,
+        CTATipo.SEGUIR, CTATipo.COMPARTILHAR, CTATipo.LER_ARTIGO,
+    },
+    # O Threads renderiza link nativo e tem salvar, resposta e repost.
+    "threads": {
+        CTATipo.ASSISTIR, CTATipo.SALVAR, CTATipo.COMENTAR, CTATipo.SEGUIR,
+        CTATipo.COMPARTILHAR, CTATipo.LER_ARTIGO,
+    },
+    # Feed do Instagram: salvar, comentar e marcar existem. O link não —
+    # o caminho é a bio, e por isso `assistir`/`ler_artigo` continuam válidos
+    # desde que o texto mande para lá (validado em `_validar_sem_link_instagram`).
+    "instagram_feed": {
+        CTATipo.ASSISTIR, CTATipo.SALVAR, CTATipo.MARCAR, CTATipo.COMENTAR,
+        CTATipo.SEGUIR, CTATipo.COMPARTILHAR, CTATipo.LER_ARTIGO,
+    },
+    # Story: sem salvar, sem comentário, sem marcar. Sobram resposta por DM,
+    # sticker, compartilhamento e o link da bio.
+    "instagram_story": {
+        CTATipo.ASSISTIR, CTATipo.RESPONDER, CTATipo.SEGUIR,
+        CTATipo.COMPARTILHAR, CTATipo.LER_ARTIGO,
+    },
+    # Quem lê já é inscrito: pedir para seguir não faz sentido.
+    "youtube_community": {
+        CTATipo.ASSISTIR, CTATipo.COMENTAR, CTATipo.LER_ARTIGO,
+        CTATipo.COMPARTILHAR,
+    },
+}
+
+
+def validar_cta_do_posicionamento(posicionamento: str, cta: "CTA") -> "CTA":
+    """Rejeita CTA que a interface daquele posicionamento não sabe atender."""
+    permitidos = CTAS_POR_POSICIONAMENTO.get(posicionamento)
+    if permitidos and cta.tipo not in permitidos:
+        raise ValueError(
+            f"CTA '{cta.tipo.value}' não existe em {posicionamento} — "
+            f"a interface não oferece essa ação. Disponíveis: "
+            f"{', '.join(sorted(c.value for c in permitidos))}"
+        )
+    return cta
 
 
 # Tipos que levam alguém ao vídeo AGORA. O resto trabalha alcance.
@@ -248,7 +301,7 @@ class PostLinkedIn(PecaBase):
         # motivo que tira o link do `corpo` vale aqui.
         if any(m in v.texto for m in LINK_MARCADORES):
             raise ValueError("cta.texto do LinkedIn não pode conter link — use comentario_fixado")
-        return v
+        return validar_cta_do_posicionamento("linkedin", v)
 
 
 class PostThreads(PecaBase):
@@ -305,6 +358,11 @@ class PostThreads(PecaBase):
             vistos.append(palavras)
         return v
 
+    @field_validator("cta")
+    @classmethod
+    def cta_do_posicionamento(cls, v: CTA) -> CTA:
+        return validar_cta_do_posicionamento("threads", v)
+
     @field_validator("posts")
     @classmethod
     def primeira_resposta_nao_repete_o_gancho(cls, v: List[str], info) -> List[str]:
@@ -358,7 +416,7 @@ class Carrossel(PecaBase):
     @classmethod
     def cta_sem_link(cls, v: CTA) -> CTA:
         _validar_sem_link_instagram("cta.texto", v.texto)
-        return v
+        return validar_cta_do_posicionamento("instagram_feed", v)
 
 
 class FrameStory(BaseModel):
@@ -402,7 +460,7 @@ class Story(PecaBase):
     @classmethod
     def cta_sem_link(cls, v: CTA) -> CTA:
         _validar_sem_link_instagram("cta.texto", v.texto)
-        return v
+        return validar_cta_do_posicionamento("instagram_story", v)
 
 
 class PostYouTubeCommunity(PecaBase):
@@ -420,6 +478,11 @@ class PostYouTubeCommunity(PecaBase):
         default=None, min_length=2, max_length=4,
         description="Opções de enquete nativa do YouTube, quando fizer sentido.",
     )
+
+    @field_validator("cta")
+    @classmethod
+    def cta_do_posicionamento(cls, v: CTA) -> CTA:
+        return validar_cta_do_posicionamento("youtube_community", v)
 
 
 # Uma afirmação sobre o vídeo é a interseção de duas coisas: falar DO vídeo e
