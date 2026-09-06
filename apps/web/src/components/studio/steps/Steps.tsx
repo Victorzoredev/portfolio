@@ -609,6 +609,27 @@ export function PassoSocial({
               </div>
             )}
 
+            {/* O curador olha a fila inteira depois de enfileirar e redistribui
+                para nenhuma rede levar dois posts no mesmo dia. Sem mostrar o
+                que ele fez, o rebalanceamento é invisível — e a pessoa acha
+                que o horário que ela viu na revisão é o que vai valer. */}
+            {agendamento?.rebalanceio && agendamento.rebalanceio.movidos > 0 && (
+              <div className="mt-3">
+                <Notice title={`Calendário rebalanceado — ${agendamento.rebalanceio.movidos} peça(s) remarcada(s)`}>
+                  <p>
+                    A campanha nova entrou numa agenda que já tinha peças da anterior.
+                    Nenhuma rede fica com mais posts no dia do que ela suporta —
+                    no LinkedIn, dois no mesmo dia rendem menos que um.
+                  </p>
+                  {!!agendamento.rebalanceio.depois?.length && (
+                    <ul className="mt-2 list-disc space-y-0.5 pl-4">
+                      {agendamento.rebalanceio.depois.map((a, i) => <li key={i}>{a}</li>)}
+                    </ul>
+                  )}
+                </Notice>
+              </div>
+            )}
+
             {agendamento && agendamento.falhas.length > 0 && (
               <div className="mt-3">
                 <Notice title={`${agendamento.falhas.length} peça(s) não entraram na fila`}>

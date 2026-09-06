@@ -193,6 +193,18 @@ dia, e nada acusou erro. Hoje `_pendentes_por_vencimento` pagina a fila toda e
 ordena por vencimento; o teto (`MAX_PUBLICACOES_POR_RODADA`) age na
 PUBLICAÇÃO, não na busca — limitar a busca é o defeito, não a proteção.
 
+**O calendário é curado como um todo, depois de enfileirar.** `curador_agenda`
+roda no fim do `enfileirar` e olha a fila INTEIRA — a campanha nova já dentro.
+Cada peça achar seu horário livre resolve colisão e não resolve ritmo: a fila
+de 06/09 tinha 8 sequências de story num dia, 2 posts de LinkedIn no mesmo dia
+e uma semana sem nada. Os tetos são POR REDE (`LIMITES`) porque as redes são
+diferentes — no LinkedIn dois posts no mesmo dia rendem menos que um, no
+Threads a frequência alta é esperada. A unidade contada é a PEÇA que o público
+vê, não o documento: os 3-4 frames de uma story são uma publicação só, e
+contar documentos faria o teto de story disparar no primeiro post. Peça já
+publicada nunca se move, mas OCUPA o dia. Falha aberto: sem o rebalanceamento
+a fila sai como estava.
+
 **As plataformas têm semanas OPOSTAS.** `RITMO_POR_PLATAFORMA` dá a cada uma
 sua escada de horários e diz se ela evita fim de semana. Antes era uma escada
 só para todas: 30% das peças caíam em sábado ou domingo, o que é indiferente

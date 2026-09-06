@@ -61,7 +61,16 @@ export interface Producao {
 }
 
 /** Resultado de mandar o plano social para a fila de publicação. */
+/** O que o curador fez com o calendário depois de enfileirar a campanha. */
+export interface Rebalanceio {
+  movidos: number;
+  antes?: string[];
+  depois?: string[];
+  erro?: string;
+}
+
 export interface Agendamento {
+  rebalanceio?: Rebalanceio;
   enfileirados: number;
   total: number;
   falhas: string[];

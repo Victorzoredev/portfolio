@@ -717,11 +717,72 @@ async def enfileirar(
             logger.exception("[social_publish] gravação de %s falhou", rotulo)
             falhas.append(f"{rotulo}: {str(exc)[:160]}")
 
+    # ── O calendário como um todo ─────────────────────────────────────────────
+    #
+    # Até aqui cada peça achou um horário livre NA SUA plataforma, o que
+    # resolve colisão e não resolve ritmo: o vídeo novo empilha em cima da
+    # campanha anterior, que ainda está rodando. Na fila real de 06/09 isso
+    # produziu 8 sequências de story num dia e 2 posts de LinkedIn no mesmo
+    # dia — no LinkedIn, os dois rendem menos que um teria rendido.
+    #
+    # O curador olha a fila INTEIRA, com a campanha nova já dentro, e
+    # redistribui respeitando o teto de cada rede.
+    rebalanceio = _rebalancear_agenda(db)
     return {
         "enfileirados": enfileirados,
         "total":        len(itens),
         "falhas":       falhas,
+        "rebalanceio":  rebalanceio,
     }
+
+
+def _rebalancear_agenda(db) -> dict:
+    """
+    Roda o curador sobre a fila e grava os novos horários.
+
+    Falha ABERTO: sem o rebalanceamento as peças saem no horário que já
+    tinham, que é o comportamento anterior. Derrubar o enfileiramento inteiro
+    porque o calendário não pôde ser otimizado seria trocar um problema de
+    ritmo por um de conteúdo que não existe.
+    """
+    import db_paths
+    from curador_agenda import diagnosticar, reagendar
+
+    try:
+        colecao = db.collection(db_paths.get_social_queue_path())
+        docs = []
+        for snap in colecao.stream():
+            d = snap.to_dict() or {}
+            d["_ref"] = snap.reference
+            docs.append(d)
+
+        antes = diagnosticar(docs)
+        mudancas, relatorio = reagendar(docs)
+
+        movidos = 0
+        for m in mudancas:
+            ref = m["doc"].get("_ref")
+            if ref is None:
+                continue
+            try:
+                ref.update({"scheduled_at": m["para"]})
+                m["doc"]["scheduled_at"] = m["para"]
+                movidos += 1
+            except Exception:
+                logger.exception("[curador] não consegui mover uma peça")
+
+        depois = diagnosticar(docs)
+        logger.info(
+            "[curador] %s | violações de teto: %d → %d",
+            "; ".join(relatorio),
+            len([a for a in antes if "teto" in a]),
+            len([a for a in depois if "teto" in a]),
+        )
+        return {"movidos": movidos, "antes": antes[:8], "depois": depois[:8]}
+
+    except Exception as exc:
+        logger.exception("[curador] rebalanceamento falhou; a fila segue como estava")
+        return {"movidos": 0, "erro": str(exc)[:200]}
 
 
 async def _renderizar(pedidos: list[dict], session_id: str) -> list[str]:
