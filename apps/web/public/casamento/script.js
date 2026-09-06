@@ -58,7 +58,7 @@ function abrirPagamento(id) {
     <div class="pix-presente-valor">${p.valor}</div>
     <p class="pix-instrucao">Escaneie o QR Code ou copie a chave Pix:</p>
     <div class="qr-code-pix">
-      <img src="qrcode.png" alt="QR Code Pix">
+      <img src="/casamento/qrcode.png" alt="QR Code Pix">
     </div>
     <div class="pix-key-box">
       <code>43501942826</code>
