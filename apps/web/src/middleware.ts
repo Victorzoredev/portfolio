@@ -12,6 +12,7 @@ export function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/api') ||
     pathname.startsWith('/admin') ||
+    pathname.startsWith('/casamento') ||
     pathname.startsWith('/_next') ||
     pathname.includes('.')
   ) {

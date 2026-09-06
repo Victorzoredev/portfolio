@@ -34,6 +34,18 @@ const nextConfig = {
     return [];
   },
 
+  async rewrites() {
+    return [
+      // Static wedding site under public/casamento/ — served as a plain HTML/CSS/JS
+      // bundle, not a Next.js route. /casamento has no dot in the path, so it isn't
+      // resolved to public/casamento/index.html automatically.
+      {
+        source: '/casamento',
+        destination: '/casamento/index.html',
+      },
+    ];
+  },
+
   async headers() {
     return [
       {

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Victor & Larissa - 23.01.2027</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Montserrat:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <nav id="nav">
+    <a href="#evento">Evento</a>
+    <a href="#transporte">Transporte</a>
+    <a href="#presentes">Presentes</a>
+    <a href="#galeria">Galeria</a>
+    <a href="#local">Local</a>
+    <a href="#hoteis">Hotéis</a>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <h1>Victor & Larissa</h1>
+      <p class="subtitulo">Vamos nos casar!</p>
+      <p class="data">23 · 01 · 2027</p>
+      <div class="countdown" id="countdown">
+        <div class="countdown-item"><span id="dias">000</span><small>Dias</small></div>
+        <div class="countdown-item"><span id="horas">00</span><small>Horas</small></div>
+        <div class="countdown-item"><span id="minutos">00</span><small>Min</small></div>
+        <div class="countdown-item"><span id="segundos">00</span><small>Seg</small></div>
+      </div>
+    </div>
+    <div class="scroll-hint">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+        <path d="M12 5v14M5 12l7 7 7-7"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Evento -->
+  <section id="evento" class="reveal">
+    <h2>💒 O Grande Dia</h2>
+    <div class="divider"></div>
+    <div class="evento-grid">
+      <div class="evento-card">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <h3>📅 Data</h3>
+        <p>23 de Janeiro de 2027<br><em>Sábado</em></p>
+      </div>
+      <div class="evento-card">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <h3>⏰ Horário</h3>
+        <p>Cerimônia às 17h45</p>
+      </div>
+      <div class="evento-card">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+        <h3>📍 Local</h3>
+        <p>Vale Verde<br>Várzea Paulista - SP</p>
+      </div>
+      <div class="evento-card">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        <h3>👔 Dress Code</h3>
+        <p>Esporte Fino<br><button class="dresscode-link" onclick="abrirDresscode()">ver referências →</button></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Transporte -->
+  <section class="transporte-section">
+    <div class="transporte-content reveal" id="transporte">
+      <h2>🚐 Transporte</h2>
+      <div class="divider" style="background: var(--dourado)"></div>
+      <p>Vamos organizar <strong>vans saindo de Araras</strong> para facilitar a ida ao Vale Verde! A van <strong>sai às 15h30</strong> e volta ao final da festa. Se tiver interesse, entre no grupo do WhatsApp:</p>
+      <a href="https://wa.me/5519997661003?text=Oi%20Victor!%20Tenho%20interesse%20na%20van%20para%20o%20casamento!" class="whatsapp-btn" target="_blank">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+        Entrar no Grupo
+      </a>
+    </div>
+  </section>
+
+  <!-- Presentes -->
+  <section id="presentes" class="reveal">
+    <h2>🎁 Lista de Presentes</h2>
+    <div class="divider"></div>
+    <p class="presentes-intro">Sua presença já é o maior presente! Mas se quiser nos mimar, escolha algo da nossa lista. 💚</p>
+    <button class="ver-lista-btn" onclick="abrirListaPresentes()">Ver Lista de Presentes</button>
+  </section>
+
+  <!-- Galeria -->
+  <section id="galeria" class="reveal">
+    <h2>📸 Nossa Galeria</h2>
+    <div class="divider"></div>
+    <div class="galeria-grid">
+      <div class="galeria-item galeria-grande" onclick="openLightbox('foto.png')">
+        <img src="foto.png" alt="Foto do casal">
+        <div class="galeria-overlay">Ver foto</div>
+      </div>
+      <div class="galeria-item galeria-grande" onclick="openLightbox('foto2.png')">
+        <img src="foto2.png" alt="Foto do casal">
+        <div class="galeria-overlay">Ver foto</div>
+      </div>
+      <div class="galeria-item galeria-grande" onclick="openLightbox('foto3.png')">
+        <img src="foto3.png" alt="Foto do casal">
+        <div class="galeria-overlay">Ver foto</div>
+      </div>
+      <div class="galeria-item galeria-grande" onclick="openLightbox('foto4.png')">
+        <img src="foto4.png" alt="Foto do casal">
+        <div class="galeria-overlay">Ver foto</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Local -->
+  <section id="local" class="reveal">
+    <h2>📍 Como Chegar</h2>
+    <div class="divider"></div>
+    <div class="mapa-container">
+      <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3664.6!2d-46.8353!3d-23.2107!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94cf25e2a1234567%3A0x0!2sR.%20Adelino%20Strasi%2C%2004%20-%20Jardim%20Brasil%2C%20V%C3%A1rzea%20Paulista!5e0!3m2!1spt-BR!2sbr!4v1699999999999!5m2!1spt-BR!2sbr" allowfullscreen loading="lazy"></iframe>
+    </div>
+    <p class="endereco-texto">
+      <strong>Vale Verde</strong><br>
+      R. Adelino Strasi, 04 - Jardim Brasil<br>
+      Várzea Paulista - SP, 13227-000<br>
+      <a class="maps-link" href="https://maps.google.com/?q=R.+Adelino+Strasi,+04+-+Jardim+Brasil,+V%C3%A1rzea+Paulista+-+SP,+13227-000" target="_blank">Abrir no Google Maps →</a>
+    </p>
+  </section>
+
+  <!-- Hotéis -->
+  <section id="hoteis" class="reveal">
+    <h2>🏨 Onde Se Hospedar</h2>
+    <div class="divider"></div>
+    <p class="hoteis-intro">Para quem vem de longe, separamos algumas opções de hospedagem próximas ao local do evento:</p>
+    <div class="hoteis-grid">
+      <a class="hotel-card" href="https://maps.google.com/?q=Hotel+Millian+Jundiai" target="_blank">
+        <div class="hotel-icon">🏨</div>
+        <div class="hotel-info">
+          <div class="hotel-nome">Hotel Millian Jundiaí</div>
+          <div class="hotel-cidade">Jundiaí - SP</div>
+        </div>
+        <div class="hotel-arrow">→</div>
+      </a>
+      <a class="hotel-card" href="https://maps.google.com/?q=VOA+Express+Inn+Hotel+Orquidea+Jundiai" target="_blank">
+        <div class="hotel-icon">🏨</div>
+        <div class="hotel-info">
+          <div class="hotel-nome">VOA Express Inn Hotel Orquídea</div>
+          <div class="hotel-cidade">Jundiaí - SP</div>
+        </div>
+        <div class="hotel-arrow">→</div>
+      </a>
+      <a class="hotel-card" href="https://maps.google.com/?q=Hotel+Ibis+Budget+Jundiai" target="_blank">
+        <div class="hotel-icon">🏨</div>
+        <div class="hotel-info">
+          <div class="hotel-nome">Hotel Ibis Budget</div>
+          <div class="hotel-cidade">Jundiaí - SP</div>
+        </div>
+        <div class="hotel-arrow">→</div>
+      </a>
+      <a class="hotel-card" href="https://maps.google.com/?q=Ibis+Jundiai+Shopping" target="_blank">
+        <div class="hotel-icon">🏨</div>
+        <div class="hotel-info">
+          <div class="hotel-nome">Ibis Jundiaí Shopping</div>
+          <div class="hotel-cidade">Jundiaí - SP</div>
+        </div>
+        <div class="hotel-arrow">→</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="hashtag" onclick="copyHashtag()">#VictorELarissa2027</div>
+    <p>Clique para copiar e use nas suas fotos! 📱</p>
+    <p style="margin-top:1rem; opacity:0.6; font-size:0.8rem;">Feito com 💚 para o nosso grande dia</p>
+  </footer>
+
+  <!-- Modal Dress Code -->
+  <div class="modal-overlay" id="modalDresscode" onclick="fecharModalSeFora(event)">
+    <div class="modal-box modal-dresscode">
+      <button class="modal-close" onclick="fecharDresscode()">&times;</button>
+      <h2 class="modal-titulo">👔 Referências de Look</h2>
+      <p class="modal-subtitulo">Esporte fino — inspire-se nos looks abaixo para arrasar no grande dia!</p>
+      <div class="dresscode-grid">
+        <div class="dresscode-img-item">
+          <img src="dresscode.jpeg" alt="Referência dress code">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Lista de Presentes -->
+  <div class="modal-overlay" id="modalLista" onclick="fecharModalSeFora(event)">
+    <div class="modal-box">
+      <button class="modal-close" onclick="fecharListaPresentes()">&times;</button>
+      <h2 class="modal-titulo">🎁 Lista de Presentes</h2>
+      <p class="modal-subtitulo">Escolha um presente e ajude a começar essa nova fase!</p>
+      <div class="presentes-grid" id="presentesGrid"></div>
+    </div>
+  </div>
+
+  <!-- Modal Pagamento -->
+  <div class="modal-overlay" id="modalPagamento" onclick="fecharModalSeFora(event)">
+    <div class="modal-box modal-pix">
+      <button class="modal-close" onclick="fecharPagamento()">&times;</button>
+      <div id="modalPagamentoConteudo"></div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close">&times;</button>
+    <img src="" alt="Foto ampliada" id="lightbox-img">
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
