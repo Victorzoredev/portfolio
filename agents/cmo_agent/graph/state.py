@@ -96,6 +96,10 @@ class EstadoMarketing(TypedDict, total=False):
     video_project_id: str
     video_url:        str
     video_titulo:     str
+    # Ressalvas dimensionais que passaram na tolerância de validate_manifest.
+    # Sobem para o gate: quem aprova a produção precisa saber que o vídeo saiu
+    # 4,5 min quando o alvo era 5, em vez de descobrir no vídeo pronto.
+    video_avisos:     list[str]
 
     # ── Social ────────────────────────────────────────────────────────────────
     plano_social: dict[str, Any]

@@ -373,6 +373,7 @@ async def run_scriptwriter(
     article_content: str,
     system_instruction: Optional[str] = None,
     retry_note: str = "",
+    manifesto_anterior: Optional[dict] = None,
 ) -> dict:
     """
     Gera o manifesto de roteiro segmentado no formato v2.
@@ -384,6 +385,14 @@ async def run_scriptwriter(
         retry_note: Correção explícita de uma tentativa anterior que violou a
             regra do produto (ex.: avatar_share acima do teto em
             manifest_builder.validate_manifest). Vazio na primeira tentativa.
+        manifesto_anterior: O manifesto RECUSADO, para o modelo corrigir em vez
+            de reescrever.
+
+            Sem ele, cada retentativa era um novo sorteio: o modelo recebia
+            "alongue os segmentos" e produzia um roteiro inteiramente diferente,
+            que corrigia uma violação e introduzia outra. Em 08/09 isso custou
+            quatro ciclos seguidos — os logs mostram violações DIFERENTES a cada
+            tentativa, o que é a assinatura de um rerolar, não de um corrigir.
 
     Returns:
         dict com a estrutura completa do manifesto v2 (pronto para json.dumps)
@@ -420,6 +429,30 @@ async def run_scriptwriter(
 
     if retry_note:
         prompt += f"\n\n=== CORREÇÃO OBRIGATÓRIA (tentativa anterior recusada) ===\n{retry_note}"
+
+    if manifesto_anterior:
+        # O manifesto recusado vai junto, e a instrução é EDITAR.
+        #
+        # A duração de cada segmento é derivada da contagem de palavras do
+        # `script` (ver _estimate_duration_s: palavras / 140 * 60). Então
+        # "alongue para 25s" é, literalmente, "escreva ~58 palavras". Dizer isso
+        # ao modelo em palavras — a unidade que ele controla — funciona melhor
+        # que pedir segundos, que ele só atinge por acidente.
+        try:
+            anterior_json = json.dumps(manifesto_anterior, ensure_ascii=False)[:12000]
+        except (TypeError, ValueError):
+            anterior_json = ""
+        if anterior_json:
+            prompt += (
+                "\n\n=== MANIFESTO RECUSADO (corrija ESTE, não escreva outro) ===\n"
+                f"{anterior_json}\n\n"
+                "Preserve os ids, a ordem e o assunto dos segmentos que estão "
+                "corretos — reescrever do zero costuma corrigir uma violação e "
+                "criar outra. Se a correção pede mais duração, ACRESCENTE um "
+                "segmento com assunto novo tirado do artigo; não estique os que "
+                "já existem, e não repita o que já foi dito. Encher de palavras "
+                "faz o vídeo bater a duração e piorar de assistir."
+            )
 
     try:
         from vertex_generate import generate_text as vertex_generate_text

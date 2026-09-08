@@ -2411,6 +2411,9 @@ async def graph_state(sessionId: str, request: Request):
             "slides":    len(v.get("slide_htmls") or {}),
             "projectId": v.get("video_project_id"),
             "url":       v.get("video_url"),
+            # Ressalvas dimensionais aceitas na tolerância — o gate as mostra
+            # ao lado do botão que gasta crédito.
+            "avisos":    v.get("video_avisos") or [],
         },
         "planoSocial": v.get("plano_social"),
         "trilha":      v.get("trilha", []),

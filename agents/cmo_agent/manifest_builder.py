@@ -840,6 +840,26 @@ DURACAO_MAX_S = 720      # 12 min
 SLIDE_MIN_S   = 20       # abaixo disto o slide não é lido, só piscado
 AVATAR_MIN_S  = 10
 
+# Margem de tolerância para as violações DIMENSIONAIS (duração), acima da qual
+# elas deixam de ser fatais e viram aviso ao humano no gate.
+#
+# Por que existe
+# ---------------
+# Em 08/09 o Studio perdeu QUATRO ciclos seguidos — todos por 6% a 12% abaixo
+# do piso (4,4 a 4,7 min contra 5). Em cada um deles o artigo já tinha sido
+# escrito, revisado e publicado como rascunho no blog: o `RuntimeError` jogou
+# fora um trabalho caro por causa de trinta segundos de vídeo.
+#
+# A regra continua certa — ela nasceu do vídeo de 27/08, que saiu com 3min29 e
+# slides piscando. O que estava errado era o modo de falhar: um quase-acerto
+# dimensional não é a mesma coisa que um manifesto quebrado.
+#
+# 15% mantém a rejeição daquele caso (3min29 = 30% abaixo) e deixa passar, com
+# aviso, o de hoje. Violações ESTRUTURAIS — manifesto colapsado, sem slide, sem
+# avatar, avatar fora da faixa — continuam fatais em qualquer margem: elas não
+# produzem um vídeo pior, produzem um vídeo errado, e é onde o dinheiro sai.
+TOLERANCIA_DIMENSIONAL = 0.15
+
 
 def manifest_stats(manifest_dict: dict) -> dict:
     """
@@ -1010,11 +1030,24 @@ def validate_manifest(manifest_dict: dict) -> tuple[list[str], dict]:
     Falhar aqui custa zero. Falhar depois custa uma geração de HeyGen inteira —
     foi assim que um roteiro achatado em 1 segmento virou 163s de avatar puro.
 
+    Duas classes de violação, e a diferença importa
+    ------------------------------------------------
+    **Estrutural** — manifesto colapsado, sem ilustração, sem avatar, avatar
+    fora da faixa de 10–40%. Produzem um vídeo ERRADO, e é onde o dinheiro sai.
+    Fatais sempre.
+
+    **Dimensional** — duração total ou de segmento abaixo do piso. Produzem um
+    vídeo pior, não errado. Fatais só além de `TOLERANCIA_DIMENSIONAL`; dentro
+    dela viram AVISO, que sobe para o humano no gate junto com o manifesto.
+
     Returns:
-        (violações, estatísticas). Lista vazia = manifesto aprovado.
+        (violações fatais, estatísticas). `stats["avisos"]` traz os
+        quase-acertos. Lista de violações vazia = manifesto aprovado.
     """
     stats = manifest_stats(manifest_dict)
     problems: list[str] = []
+    avisos: list[str] = []
+    stats["avisos"] = avisos
 
     if stats["segment_count"] <= 1:
         problems.append(
@@ -1038,11 +1071,15 @@ def validate_manifest(manifest_dict: dict) -> tuple[list[str], dict]:
 
     total = float(stats.get("total_duration_s") or 0)
     if total and total < DURACAO_MIN_S:
-        problems.append(
+        texto = (
             f"vídeo de {total / 60:.1f} min — abaixo do piso de "
             f"{DURACAO_MIN_S // 60} min. Alongue os segmentos existentes ou "
             f"acrescente blocos de aplicação; não corte o assunto"
         )
+        # Quase-acerto vira aviso. Ver TOLERANCIA_DIMENSIONAL: perder o ciclo
+        # inteiro — com o artigo já escrito e publicado — por trinta segundos
+        # de vídeo é um preço que a regra não pretendia cobrar.
+        (problems if total < DURACAO_MIN_S * (1 - TOLERANCIA_DIMENSIONAL) else avisos).append(texto)
     if total > DURACAO_MAX_S:
         problems.append(
             f"vídeo de {total / 60:.1f} min — acima do teto de "
@@ -1050,17 +1087,22 @@ def validate_manifest(manifest_dict: dict) -> tuple[list[str], dict]:
         )
 
     # Um total dentro da faixa pode esconder muitos slides curtos demais.
-    curtos = []
+    curtos: list[str] = []
+    curtinhos: list[str] = []       # dentro da tolerância — aviso, não fatal
     for seg in manifest_dict.get("youtube", {}).get("segments", []):
         d = seg.get("min_duration_s")
         if not isinstance(d, (int, float)):
             continue
         kind = seg.get("kind") or ("slide" if seg.get("slide") else "avatar")
         piso = SLIDE_MIN_S if kind == "slide" else AVATAR_MIN_S
-        if d < piso:
-            curtos.append(f"{seg.get('id')} ({kind}, {d:.0f}s < {piso}s)")
+        if d >= piso:
+            continue
+        rotulo = f"{seg.get('id')} ({kind}, {d:.0f}s < {piso}s)"
+        (curtos if d < piso * (1 - TOLERANCIA_DIMENSIONAL) else curtinhos).append(rotulo)
     if curtos:
         problems.append("segmentos curtos demais: " + ", ".join(curtos[:6]))
+    if curtinhos:
+        avisos.append("segmentos no limite: " + ", ".join(curtinhos[:6]))
 
     # Os dois CTAs. O roteiro fechava no assunto e nunca convidava a nada —
     # nenhum dos beats disponíveis era CTA, e o roteirista não era instruído a

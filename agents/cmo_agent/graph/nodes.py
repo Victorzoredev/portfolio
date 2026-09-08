@@ -443,15 +443,62 @@ def rota_gate_artigo(estado: EstadoMarketing) -> str:
 VIDEO_MAX_TENTATIVAS = 3  # 1 original + 2 retries corretivos antes de falhar fatal
 
 
-def _nota_corretiva(violacoes: list[str], stats: dict) -> str:
+def _secoes_do_artigo(markdown: str) -> list[str]:
+    """Os títulos `##` do artigo, na ordem — o inventário do que há para contar."""
+    return [
+        linha.lstrip("#").strip()
+        for linha in markdown.splitlines()
+        if linha.startswith("## ") and not linha.startswith("### ")
+    ]
+
+
+def _nota_corretiva(
+    violacoes: list[str],
+    stats: dict,
+    manifesto: dict | None = None,
+    artigo_markdown: str = "",
+) -> str:
     """
     Traduz uma rejeição de validate_manifest numa instrução acionável para o
     scriptwriter — o mesmo padrão de steering usado em research_agent
     (critic_notes): não basta dizer "errou", tem que dizer o número medido e
     o que fazer com ele.
+
+    Vídeo curto é falta de ASSUNTO, não falta de palavras
+    ------------------------------------------------------
+    A primeira versão desta função respondia a "vídeo de 4,5 min" com "escreva
+    mais palavras". Isso é pedir enchimento: o modelo alonga o que já disse, o
+    vídeo fica do tamanho certo e pior de assistir.
+
+    A causa real é outra. A duração sai da contagem de palavras, e a contagem
+    de palavras sai de quanto ASSUNTO o roteiro cobriu. Um roteiro curto é um
+    roteiro que pulou seções do artigo. Então a nota passa a dizer QUAIS —
+    listando os títulos do artigo ao lado dos beats já escritos, e mandando
+    acrescentar segmento, não esticar segmento.
     """
     share_pct = stats.get("avatar_share", 0.0) * 100
     linhas = [f"- {v}" for v in violacoes]
+
+    curto = any("abaixo do piso" in v for v in violacoes)
+    if curto and artigo_markdown:
+        secoes = _secoes_do_artigo(artigo_markdown)
+        beats = [
+            (seg.get("beat") or "?")
+            for seg in (manifesto or {}).get("youtube", {}).get("segments", [])
+        ]
+        if secoes:
+            linhas.append(
+                "O vídeo ficou curto porque o roteiro cobriu MENOS ASSUNTO do que o "
+                "artigo tem, não porque as frases estão curtas. NÃO alongue os "
+                "segmentos existentes e NÃO repita o que já foi dito.\n"
+                f"  O artigo tem estas seções: {'; '.join(secoes)}.\n"
+                f"  Seu roteiro cobriu estes beats, nesta ordem: {', '.join(beats)}.\n"
+                "  Escolha a seção do artigo com mais substância que ficou de fora e "
+                "ACRESCENTE um segmento novo sobre ela, com slide, entre 25 e 45 "
+                "segundos. Se todas já estiverem cobertas, aprofunde a que tem "
+                "número, exemplo ou trade-off concreto no artigo e ainda entrou "
+                "resumida demais."
+            )
     if stats.get("avatar_share", 0.0) > 0.40:
         linhas.append(
             f"Sua última tentativa saiu com {share_pct:.0f}% de avatar; o teto "
@@ -487,9 +534,16 @@ async def no_video(estado: EstadoMarketing) -> dict:
             manifesto: dict = {}
             violacoes: list[str] = []
             stats: dict = {}
+            anterior: dict | None = None
             for tentativa in range(1, VIDEO_MAX_TENTATIVAS + 1):
                 manifesto = await run_scriptwriter(
-                    pauta, estado.get("artigo_markdown", ""), retry_note=retry_note,
+                    pauta, estado.get("artigo_markdown", ""),
+                    retry_note=retry_note,
+                    # O manifesto recusado vai junto para o modelo CORRIGIR.
+                    # Sem ele cada tentativa era um sorteio novo: os logs de
+                    # 08/09 mostram violações diferentes a cada rodada, que é a
+                    # assinatura de um rerolar.
+                    manifesto_anterior=anterior,
                 )
                 violacoes, stats = validate_manifest(manifesto)
                 if not violacoes:
@@ -501,14 +555,35 @@ async def no_video(estado: EstadoMarketing) -> dict:
                         tentativa, VIDEO_MAX_TENTATIVAS,
                         stats.get("avatar_share", 0.0) * 100, "; ".join(violacoes),
                     )
-                    retry_note = _nota_corretiva(violacoes, stats)
+                    retry_note = _nota_corretiva(
+                        violacoes, stats,
+                        manifesto=manifesto,
+                        artigo_markdown=estado.get("artigo_markdown", ""),
+                    )
+                    anterior = manifesto
 
             if violacoes:
                 # Falhar aqui custa zero; falhar depois custa HeyGen. Já
                 # tentamos a correção automática — sobrou pro humano.
+                #
+                # Só chega aqui violação ESTRUTURAL ou dimensional muito fora da
+                # faixa: `validate_manifest` rebaixa o quase-acerto a aviso (ver
+                # TOLERANCIA_DIMENSIONAL). Antes disso, quatro ciclos de 08/09
+                # morreram aqui por 6% a 12% abaixo do piso — com o artigo já
+                # escrito, revisado e publicado como rascunho.
                 raise RuntimeError(
                     f"manifesto viola a regra do produto após "
                     f"{VIDEO_MAX_TENTATIVAS} tentativas: " + "; ".join(violacoes)
+                )
+
+            # Os quase-acertos sobem para o humano no gate, em vez de sumirem.
+            # Quem aprova precisa saber que o vídeo saiu 4,5 min quando o alvo
+            # era 5 — é decisão dele seguir ou pedir ajuste.
+            avisos_do_manifesto = list(stats.get("avisos") or [])
+            if avisos_do_manifesto:
+                logger.info(
+                    "[grafo/video] manifesto aceito com ressalva: %s",
+                    "; ".join(avisos_do_manifesto),
                 )
 
             slides: dict[str, str] = {}
@@ -526,10 +601,16 @@ async def no_video(estado: EstadoMarketing) -> dict:
                 "manifesto": manifesto,
                 "slide_htmls": slides,
                 "video_titulo": manifesto.get("title", ""),
+                # Ressalvas dimensionais que passaram na tolerância. A tela do
+                # gate as mostra ao lado do botão de aprovar: quem decide gastar
+                # crédito precisa saber que o vídeo saiu 4,5 min quando o alvo
+                # era 5 — e é decisão dele seguir ou pedir ajuste.
+                "video_avisos": avisos_do_manifesto,
                 "fase": "aguardando_aprovacao_video",
                 "trilha": [
                     f"video: {stats['segment_count']} segmentos, "
                     f"{stats['avatar_share'] * 100:.0f}% avatar, {len(slides)} slides"
+                    + (f" — {len(avisos_do_manifesto)} ressalva(s)" if avisos_do_manifesto else "")
                 ],
             }
         except Exception as exc:

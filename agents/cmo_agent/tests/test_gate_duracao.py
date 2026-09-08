@@ -132,3 +132,155 @@ def test_video_nao_pode_terminar_num_pedido():
     segs[-1]["beat"] = "cta_artigo"
     problemas, _ = validate_manifest(_manifesto(segs))
     assert any("termina num pedido" in p for p in problemas)
+
+
+# ── Quase-acerto ──────────────────────────────────────────────────────────────
+#
+# Em 08/09 o Studio perdeu QUATRO ciclos seguidos, todos por 6% a 12% abaixo do
+# piso de duração — 4,4 / 4,5 / 4,7 min contra 5. Em cada um deles o artigo já
+# tinha sido escrito, revisado e publicado como rascunho no blog, e o
+# `RuntimeError` do nó de vídeo jogou tudo fora por causa de trinta segundos.
+#
+# A regra continua certa; o modo de falhar é que estava errado. Violação
+# ESTRUTURAL (o vídeo sai errado) segue fatal; violação DIMENSIONAL dentro da
+# tolerância vira aviso, e sobe para o humano no gate decidir.
+
+from manifest_builder import TOLERANCIA_DIMENSIONAL  # noqa: E402
+
+
+def _com_ctas_ok(segs):
+    segs = _com_ctas(segs)
+    segs[len(segs) // 2]["beat"] = "cta_meio"
+    segs[-2]["beat"] = "cta_artigo"
+    return segs
+
+
+def test_quase_no_piso_vira_aviso_e_nao_mata_o_ciclo():
+    """
+    O caso literal de 08/09: 4,5 min contra o piso de 5.
+
+    Passar não é afrouxar a régua — é não jogar fora um artigo já publicado por
+    causa de meio minuto de vídeo.
+    """
+    # 270s exatos: 10% abaixo do piso, dentro dos 15% de tolerância.
+    # Montado à mão porque `_equilibrado` não dá controle fino do total.
+    segs = _com_ctas_ok(_equilibrado(9, 22, dur_avatar=12))
+    total = sum(x["min_duration_s"] for x in segs)
+    segs[1]["min_duration_s"] += 270 - total      # ajusta um slide para fechar 270
+    problemas, stats = validate_manifest(_manifesto(segs))
+
+    total = stats["total_duration_s"]
+    assert DURACAO_MIN_S * (1 - TOLERANCIA_DIMENSIONAL) <= total < DURACAO_MIN_S, total
+    assert not any("abaixo do piso" in p for p in problemas), problemas
+    assert any("abaixo do piso" in a for a in stats["avisos"]), stats["avisos"]
+
+
+def test_curto_demais_continua_fatal():
+    """
+    O vídeo de 27/08 — 3min29, 30% abaixo. A tolerância não pode salvá-lo: ali
+    o problema não era meio minuto, era um vídeo pela metade.
+    """
+    problemas, stats = validate_manifest(_manifesto(_equilibrado(8, 16)))
+    assert stats["total_duration_s"] < DURACAO_MIN_S * (1 - TOLERANCIA_DIMENSIONAL)
+    assert any("abaixo do piso" in p for p in problemas)
+
+
+def test_slide_no_limite_vira_aviso():
+    """19s contra o piso de 20 é legível. 14s é um slide piscando."""
+    segs = _com_ctas_ok(_equilibrado(14, 32))
+    segs[2]["min_duration_s"] = 19          # 5% abaixo — dentro da tolerância
+    problemas, stats = validate_manifest(_manifesto(segs))
+    assert not any("curtos demais" in p for p in problemas), problemas
+    assert any("no limite" in a for a in stats["avisos"]), stats["avisos"]
+
+
+def test_slide_muito_curto_continua_fatal():
+    segs = _com_ctas_ok(_equilibrado(14, 32))
+    segs[2]["min_duration_s"] = 12          # 40% abaixo
+    problemas, _ = validate_manifest(_manifesto(segs))
+    assert any("curtos demais" in p for p in problemas)
+
+
+def test_violacao_estrutural_ignora_a_tolerancia():
+    """
+    Avatar fora da faixa produz um vídeo ERRADO, não um vídeo pior — foi assim
+    que um roteiro achatado virou 163s de avatar puro. Nenhuma margem se aplica.
+    """
+    segs = [_seg("yt-01", "avatar", 200), _seg("yt-02", "slide", 200)]
+    problemas, _ = validate_manifest(_manifesto(segs))
+    assert any("avatar ocupa" in p for p in problemas)
+
+    sem_slide = [_seg("yt-01", "avatar", 320)]
+    problemas, _ = validate_manifest(_manifesto(sem_slide))
+    assert any("ilustração" in p for p in problemas)
+
+
+def test_manifesto_limpo_nao_gera_aviso():
+    segs = _com_ctas_ok(_equilibrado(14, 32))
+    problemas, stats = validate_manifest(_manifesto(segs))
+    assert problemas == [], problemas
+    assert stats["avisos"] == [], stats["avisos"]
+
+
+# ── A nota corretiva ──────────────────────────────────────────────────────────
+
+def test_nota_de_video_curto_aponta_secao_do_artigo_nao_pede_palavras():
+    """
+    Vídeo curto é falta de ASSUNTO, não falta de palavras.
+
+    A primeira versão desta nota respondia "vídeo de 4,5 min" com "escreva ~58
+    palavras". Isso é pedir enchimento: o modelo alonga o que já disse, bate a
+    duração e piora o vídeo. A duração sai da contagem de palavras, que sai de
+    quanto assunto o roteiro cobriu — então a nota tem que dizer QUAL seção do
+    artigo ficou de fora.
+    """
+    from graph.nodes import _nota_corretiva
+
+    artigo = (
+        "Intro solta\n\n"
+        "## O colapso matemático\ntexto\n\n"
+        "## O ciclo no Cursor\ntexto\n\n"
+        "### Subseção que não conta\ntexto\n\n"
+        "## Matriz de decisão\ntexto\n"
+    )
+    manifesto = {"youtube": {"segments": [
+        {"id": "yt-01", "beat": "hook"}, {"id": "yt-02", "beat": "teoria"},
+    ]}}
+
+    nota = _nota_corretiva(
+        ["vídeo de 4.5 min — abaixo do piso de 5 min"],
+        {"avatar_share": 0.2},
+        manifesto=manifesto,
+        artigo_markdown=artigo,
+    )
+
+    # Nomeia o inventário do artigo e o que já foi coberto.
+    assert "Matriz de decisão" in nota
+    assert "O ciclo no Cursor" in nota
+    assert "hook, teoria" in nota
+    # `###` não é seção de primeiro nível.
+    assert "Subseção que não conta" not in nota
+    # E manda ACRESCENTAR, não esticar.
+    assert "ACRESCENTE" in nota
+    assert "NÃO alongue" in nota
+
+
+def test_nota_sem_artigo_nao_quebra():
+    """O caminho legado chama sem o markdown; a nota degrada, não levanta."""
+    from graph.nodes import _nota_corretiva
+
+    nota = _nota_corretiva(["vídeo de 4.5 min — abaixo do piso de 5 min"], {"avatar_share": 0.2})
+    assert "abaixo do piso" in nota
+
+
+def test_nota_de_avatar_alto_continua_falando_de_proporcao():
+    """A correção de avatar é de PROPORÇÃO — nada a ver com assunto faltando."""
+    from graph.nodes import _nota_corretiva
+
+    nota = _nota_corretiva(
+        ["avatar ocupa 55% do vídeo (teto 40%)"],
+        {"avatar_share": 0.55},
+        artigo_markdown="## Uma seção\ntexto\n",
+    )
+    assert "55%" in nota and "20%" in nota
+    assert "ACRESCENTE" not in nota      # não é problema de assunto
